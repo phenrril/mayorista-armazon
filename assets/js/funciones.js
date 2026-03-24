@@ -1,0 +1,485 @@
+function formatCurrency(value) {
+    return '$' + Number(value || 0).toLocaleString('es-AR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+function btnCambiar(e) {
+    e.preventDefault();
+    const actual = $('#actual').val();
+    const nueva = $('#nueva').val();
+
+    if (!actual || !nueva) {
+        Swal.fire({
+            position: 'top-end',
+            icon: 'error',
+            title: 'Completa ambos campos',
+            showConfirmButton: false,
+            timer: 2000
+        });
+        return;
+    }
+
+    $.ajax({
+        url: 'ajax.php',
+        type: 'POST',
+        data: {
+            actual: actual,
+            nueva: nueva,
+            cambio: true
+        },
+        success: function (response) {
+            if (response === 'ok') {
+                Swal.fire({
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Contraseña actualizada',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+                $('#frmPass')[0].reset();
+                $('#nuevo_pass').modal('hide');
+            } else if (response === 'dif') {
+                Swal.fire({
+                    position: 'top-end',
+                    icon: 'error',
+                    title: 'La contraseña actual es incorrecta',
+                    showConfirmButton: false,
+                    timer: 2200
+                });
+            } else {
+                Swal.fire({
+                    position: 'top-end',
+                    icon: 'error',
+                    title: 'No se pudo actualizar la contraseña',
+                    showConfirmButton: false,
+                    timer: 2200
+                });
+            }
+        }
+    });
+}
+
+function actualizarPanelCliente(idCliente) {
+    if (!idCliente) {
+        $('#cc_saldo_actual').text(formatCurrency(0));
+        $('#cc_limite').text(formatCurrency(0));
+        $('#cc_saldo_resultante').text(formatCurrency(0));
+        return;
+    }
+
+    $.getJSON('ajax.php', { cliente_cc: idCliente }, function (response) {
+        $('#cc_saldo_actual').text(formatCurrency(response.saldo_actual || 0));
+        $('#cc_limite').text(formatCurrency(response.limite_credito || 0));
+        const montoCc = parseFloat($('#monto_cc').val()) || 0;
+        $('#cc_saldo_resultante').text(formatCurrency((response.saldo_actual || 0) + montoCc));
+    });
+}
+
+function obtenerTotalVenta() {
+    let total = 0;
+    $('#detalle_venta tr').each(function () {
+        const subtotal = parseFloat($(this).find('.subtotal-item').data('subtotal'));
+        if (!isNaN(subtotal)) {
+            total += subtotal;
+        }
+    });
+
+    return total;
+}
+
+function actualizarResumenCobro(total, abona, montoCc) {
+    $('#abona').val(Number(abona || 0).toFixed(2));
+    $('#monto_cc').val(Number(montoCc || 0).toFixed(2));
+    $('#total-amount').text(formatCurrency(total));
+    $('#total_tabla').text(formatCurrency(total));
+
+    const saldoActualTexto = $('#cc_saldo_actual').text().replace(/\./g, '').replace('$', '').replace(',', '.').trim();
+    const saldoActual = parseFloat(saldoActualTexto) || 0;
+    $('#cc_saldo_resultante').text(formatCurrency(saldoActual + montoCc));
+}
+
+function calcularVenta(origen = 'abona') {
+    const total = obtenerTotalVenta();
+
+    const abonaInput = $('#abona');
+    const montoCcInput = $('#monto_cc');
+    let abona = parseFloat(abonaInput.val());
+    let montoCc = parseFloat(montoCcInput.val());
+
+    if (origen === 'cc') {
+        if (isNaN(montoCc) || montoCc < 0) {
+            montoCc = 0;
+        }
+        if (montoCc > total) {
+            montoCc = total;
+        }
+        abona = Math.max(0, total - montoCc);
+    } else {
+        if (isNaN(abona) || abona < 0) {
+            abona = 0;
+        }
+        if (abona > total) {
+            abona = total;
+        }
+        montoCc = Math.max(0, total - abona);
+    }
+
+    actualizarResumenCobro(total, abona, montoCc);
+}
+
+function listar() {
+    if (!$('#detalle_venta').length) {
+        return;
+    }
+
+    $.getJSON('ajax.php', { detalle: true }, function (response) {
+        let html = '';
+
+        if (!response.length) {
+            html = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-box-open fa-2x mb-2"></i><div>No hay productos cargados.</div></div></td></tr>';
+        } else {
+            response.forEach(function (row) {
+                const precioBloqueado = !!row.precio_editado;
+                html += `
+                    <tr>
+                        <td><span class="badge badge-light">${row.codigo}</span></td>
+                        <td>${row.descripcion}</td>
+                        <td>${row.cantidad}</td>
+                        <td>
+                            <input
+                                type="number"
+                                class="precio-editable-input"
+                                value="${parseFloat(row.precio_venta).toFixed(2)}"
+                                min="0"
+                                step="0.01"
+                                ${precioBloqueado ? 'disabled' : ''}
+                                onchange="actualizarPrecio(${row.id}, this.value, this)"
+                            >
+                            <small class="d-block mt-1 ${precioBloqueado ? 'text-warning' : 'text-muted'}">
+                                ${precioBloqueado ? 'Precio ya editado en este pedido' : 'Se puede editar una sola vez'}
+                            </small>
+                        </td>
+                        <td class="subtotal-item" data-subtotal="${row.sub_total}">${formatCurrency(row.sub_total)}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" type="button" onclick="deleteDetalle(${row.id})">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        $('#detalle_venta').html(html);
+        calcularVenta();
+    });
+}
+
+function registrarDetalleManual(id, cant, precio) {
+    $.ajax({
+        url: 'ajax.php',
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            id: id,
+            cant: cant,
+            precio: precio,
+            tipo_venta: $('#tipo_venta').val(),
+            action: 'agregar'
+        },
+        success: function (response) {
+            const normalized = String(response).replace(/"/g, '');
+            if (normalized === 'registrado' || normalized === 'actualizado') {
+                $('#producto').val('').focus();
+                listar();
+                return;
+            }
+
+            if (normalized === 'stock_insuficiente') {
+                Swal.fire({
+                    position: 'top-end',
+                    icon: 'warning',
+                    title: 'Stock insuficiente',
+                    showConfirmButton: false,
+                    timer: 2200
+                });
+                return;
+            }
+
+            Swal.fire({
+                position: 'top-end',
+                icon: 'error',
+                title: 'No se pudo agregar el producto',
+                showConfirmButton: false,
+                timer: 2200
+            });
+        }
+    });
+}
+
+function actualizarPrecio(id, nuevoPrecio, inputEl) {
+    const precio = parseFloat(nuevoPrecio);
+    if (isNaN(precio) || precio < 0) {
+        Swal.fire({
+            position: 'top-end',
+            icon: 'warning',
+            title: 'Precio inválido',
+            showConfirmButton: false,
+            timer: 2000
+        });
+        listar();
+        return;
+    }
+
+    $.ajax({
+        url: 'ajax.php',
+        type: 'POST',
+        data: {
+            update_precio: true,
+            id: id,
+            precio: precio
+        },
+        success: function (response) {
+            if (response === 'ok') {
+                const fila = $(inputEl).closest('tr');
+                const cantidad = parseFloat(fila.find('td:nth-child(3)').text()) || 1;
+                const subtotal = precio * cantidad;
+                fila.find('.subtotal-item').data('subtotal', subtotal).text(formatCurrency(subtotal));
+                calcularVenta();
+                listar();
+            } else if (response === 'limite_edicion') {
+                Swal.fire({
+                    position: 'top-end',
+                    icon: 'warning',
+                    title: 'Ese precio ya fue editado una vez',
+                    showConfirmButton: false,
+                    timer: 2500
+                });
+                listar();
+            } else {
+                listar();
+            }
+        },
+        error: function () {
+            listar();
+        }
+    });
+}
+
+function deleteDetalle(id) {
+    $.ajax({
+        url: 'ajax.php',
+        data: {
+            id: id,
+            delete_detalle: true
+        },
+        success: function () {
+            listar();
+        }
+    });
+}
+
+function guardarNuevoCliente() {
+    const nombre = $('#nombre_cliente').val().trim();
+    const telefono = $('#telefono_cliente').val().trim();
+    const direccion = $('#direccion_cliente').val().trim();
+
+    if (!nombre || !telefono || !direccion) {
+        Swal.fire({
+            position: 'top-end',
+            icon: 'warning',
+            title: 'Completa nombre, teléfono y dirección',
+            showConfirmButton: false,
+            timer: 2200
+        });
+        return;
+    }
+
+    $.ajax({
+        url: 'ajax.php',
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            nuevo_cliente: true,
+            nombre_cliente: nombre,
+            telefono_cliente: telefono,
+            direccion_cliente: direccion,
+            dni_cliente: $('#dni_cliente').val()
+        },
+        success: function (response) {
+            if (!response.success) {
+                Swal.fire({
+                    position: 'top-end',
+                    icon: 'error',
+                    title: response.mensaje || 'No se pudo guardar el cliente',
+                    showConfirmButton: false,
+                    timer: 2200
+                });
+                return;
+            }
+
+            $('#nuevo_cliente_venta').modal('hide');
+            $('#form_nuevo_cliente')[0].reset();
+            $('#idcliente').val(response.cliente.id);
+            $('#nom_cliente').val(response.cliente.label);
+            $('#tel_cliente').val(response.cliente.telefono);
+            $('#dir_cliente').val(response.cliente.direccion);
+            actualizarPanelCliente(response.cliente.id);
+            Swal.fire({
+                position: 'top-end',
+                icon: 'success',
+                title: response.mensaje,
+                showConfirmButton: false,
+                timer: 1800
+            });
+        }
+    });
+}
+
+function generarPDF(cliente, idVenta) {
+    window.open('pdf/generar.php?cl=' + cliente + '&v=' + idVenta, '_blank');
+}
+
+$(function () {
+    if ($('#tbl').length && !$('#tbl').hasClass('custom-dt-init')) {
+        $('#tbl').DataTable();
+    }
+
+    $('.confirmar').on('submit', function (e) {
+        e.preventDefault();
+        const form = this;
+        Swal.fire({
+            title: '¿Eliminar registro?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    });
+
+    $('#nom_cliente').autocomplete({
+        minLength: 2,
+        source: function (request, response) {
+            $.getJSON('ajax.php', { q: request.term }, response);
+        },
+        select: function (event, ui) {
+            $('#idcliente').val(ui.item.id);
+            $('#nom_cliente').val(ui.item.label);
+            $('#tel_cliente').val(ui.item.telefono || '');
+            $('#dir_cliente').val(ui.item.direccion || '');
+            $('#cc_saldo_actual').text(formatCurrency(ui.item.saldo_cc || 0));
+            $('#cc_limite').text(formatCurrency(ui.item.limite_credito || 0));
+            calcularVenta();
+            return false;
+        }
+    });
+
+    $('#producto').autocomplete({
+        minLength: 2,
+        source: function (request, response) {
+            $.getJSON('ajax.php', {
+                pro: request.term,
+                tipo_venta: $('#tipo_venta').val()
+            }, response);
+        },
+        select: function (event, ui) {
+            $('#producto').val(ui.item.label);
+            registrarDetalleManual(ui.item.id, 1, ui.item.precio);
+            return false;
+        }
+    });
+
+    $('#tipo_venta').on('change', function () {
+        $('#producto').attr('placeholder',
+            $(this).val() === 'mayorista'
+                ? 'Buscando con precio mayorista...'
+                : 'Buscando con precio minorista...'
+        );
+    });
+
+    $('#abona').on('input', function () {
+        calcularVenta('abona');
+    });
+    $('#monto_cc').on('input', function () {
+        calcularVenta('cc');
+    });
+    $('#btn_recalcular').on('click', calcularVenta);
+
+    $('#btn_generar').on('click', function () {
+        const idCliente = $('#idcliente').val();
+        const metodoPago = $('input[name="pago"]:checked').val();
+        const abona = parseFloat($('#abona').val()) || 0;
+
+        if (!idCliente) {
+            Swal.fire({
+                position: 'top-end',
+                icon: 'warning',
+                title: 'Selecciona un cliente',
+                showConfirmButton: false,
+                timer: 2200
+            });
+            return;
+        }
+
+        $.ajax({
+            url: 'ajax.php',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                procesarVenta: true,
+                id: idCliente,
+                abona: abona,
+                tipo_venta: $('#tipo_venta').val(),
+                metodo_pago: metodoPago,
+                observacion: $('#observacion_venta').val()
+            },
+            success: function (response) {
+                if (response.mensaje === 'error') {
+                    Swal.fire({
+                        position: 'top-end',
+                        icon: 'error',
+                        title: response.detalle || 'No se pudo generar la venta',
+                        showConfirmButton: false,
+                        timer: 3200
+                    });
+                    return;
+                }
+
+                Swal.fire({
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Venta generada',
+                    text: 'Venta #' + response.id_venta,
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+
+                generarPDF(response.id_cliente, response.id_venta);
+                setTimeout(function () {
+                    window.location.reload();
+                }, 600);
+            },
+            error: function (xhr) {
+                const detalle = xhr.responseJSON && xhr.responseJSON.detalle
+                    ? xhr.responseJSON.detalle
+                    : 'No se pudo generar la venta.';
+                Swal.fire({
+                    position: 'top-end',
+                    icon: 'error',
+                    title: detalle,
+                    showConfirmButton: false,
+                    timer: 3200
+                });
+            }
+        });
+    });
+
+    listar();
+    calcularVenta();
+});

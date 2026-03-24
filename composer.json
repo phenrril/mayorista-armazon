@@ -1,0 +1,14 @@
+{
+    "name": "optica/sistema-ventas",
+    "description": "Sistema de ventas con facturación electrónica ARCA",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "afipsdk/afip.php": "^0.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/classes/"
+        }
+    }
+}

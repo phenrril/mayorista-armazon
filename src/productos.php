@@ -1,0 +1,373 @@
+<?php
+session_start();
+include "../conexion.php";
+require_once "includes/mayorista_helpers.php";
+
+if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
+    header("Location: ../");
+    exit();
+}
+
+$id_user = (int) $_SESSION['idUser'];
+mayorista_requiere_permiso($conexion, $id_user, array('productos'));
+
+$hasMayorista = mayorista_column_exists($conexion, 'producto', 'precio_mayorista');
+$hasTipo = mayorista_column_exists($conexion, 'producto', 'tipo');
+$hasPrecioBruto = mayorista_column_exists($conexion, 'producto', 'precio_bruto');
+$hasCosto = mayorista_column_exists($conexion, 'producto', 'costo');
+$alert = '';
+
+if (!empty($_POST['action']) && $_POST['action'] === 'crear_producto') {
+    $codigo = mysqli_real_escape_string($conexion, trim($_POST['codigo'] ?? ''));
+    $descripcion = mysqli_real_escape_string($conexion, trim($_POST['producto'] ?? ''));
+    $marca = mysqli_real_escape_string($conexion, trim($_POST['marca'] ?? ''));
+    $precio = (float) ($_POST['precio'] ?? 0);
+    $precioMayorista = (float) ($_POST['precio_mayorista'] ?? $precio);
+    $cantidad = (int) ($_POST['cantidad'] ?? 0);
+    $tipo = ($_POST['tipo'] ?? 'armazon') === 'accesorio' ? 'accesorio' : 'armazon';
+    $precioBruto = (float) ($_POST['precio_bruto'] ?? 0);
+    $costo = isset($_POST['costo']) ? 1 : 0;
+
+    if ($codigo === '' || $descripcion === '' || $marca === '' || $precio < 0 || $cantidad < 0) {
+        $alert = '<div class="alert alert-warning">Completa codigo, descripcion, marca, precio y stock inicial.</div>';
+    } else {
+        $check = mysqli_query($conexion, "SELECT 1 FROM producto WHERE codigo = '$codigo' LIMIT 1");
+        if ($check && mysqli_num_rows($check) > 0) {
+            $alert = '<div class="alert alert-warning">Ya existe un producto con ese codigo.</div>';
+        } else {
+            $campos = array('codigo', 'descripcion', 'marca', 'precio', 'existencia', 'usuario_id');
+            $valores = array("'$codigo'", "'$descripcion'", "'$marca'", $precio, $cantidad, $id_user);
+
+            if ($hasMayorista) {
+                $campos[] = 'precio_mayorista';
+                $valores[] = $precioMayorista;
+            }
+            if ($hasPrecioBruto) {
+                $campos[] = 'precio_bruto';
+                $valores[] = $precioBruto;
+            }
+            if ($hasTipo) {
+                $campos[] = 'tipo';
+                $valores[] = "'$tipo'";
+            }
+            if ($hasCosto) {
+                $campos[] = 'costo';
+                $valores[] = $costo;
+            }
+
+            $insert = mysqli_query(
+                $conexion,
+                "INSERT INTO producto(" . implode(', ', $campos) . ")
+                 VALUES (" . implode(', ', $valores) . ")"
+            );
+
+            if ($insert) {
+                $alert = '<div class="alert alert-success">Producto creado correctamente.</div>';
+            } else {
+                $alert = '<div class="alert alert-danger">No se pudo crear el producto.</div>';
+            }
+        }
+    }
+}
+
+if (!empty($_POST['action']) && $_POST['action'] === 'ajuste_masivo') {
+    $objetivo = $_POST['objetivo_precio'] ?? 'minorista';
+    $porcentaje = (float) ($_POST['porcentaje'] ?? 0);
+    $factor = 1 + ($porcentaje / 100);
+
+    if ($factor <= 0) {
+        $alert = '<div class="alert alert-warning">El porcentaje ingresado genera un precio invalido.</div>';
+    } else {
+        $campo = ($objetivo === 'mayorista' && $hasMayorista) ? 'precio_mayorista' : 'precio';
+        $update = mysqli_query(
+            $conexion,
+            "UPDATE producto
+             SET $campo = ROUND($campo * $factor, 2)"
+        );
+        $alert = $update
+            ? '<div class="alert alert-success">Actualizacion masiva aplicada sobre precio ' . $campo . '.</div>'
+            : '<div class="alert alert-danger">No se pudo aplicar el ajuste masivo.</div>';
+    }
+}
+
+$query = mysqli_query($conexion, "SELECT * FROM producto ORDER BY codproducto DESC");
+include_once "includes/header.php";
+?>
+<style>
+.productos-container {
+    max-width: 1450px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.page-header {
+    background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+    color: #fff;
+    border-radius: 18px;
+    padding: 28px;
+    margin-bottom: 24px;
+}
+
+.card-modern {
+    border: none;
+    border-radius: 18px;
+    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+    margin-bottom: 24px;
+}
+
+.card-header-modern {
+    background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+    color: #fff;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 18px 24px;
+    font-weight: 600;
+}
+
+.stat-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 16px;
+    text-align: center;
+    height: 100%;
+}
+
+.stat-box strong {
+    display: block;
+    font-size: 1.7rem;
+    color: #0f172a;
+}
+</style>
+
+<div class="productos-container">
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap">
+        <div>
+            <h2><i class="fas fa-glasses mr-2"></i> Productos</h2>
+            <p class="mb-0">Catalogo listo para minorista y mayorista.</p>
+        </div>
+        <div class="mt-3 mt-md-0">
+            <button class="btn btn-light mr-2" data-toggle="modal" data-target="#modalProducto">
+                <i class="fas fa-plus mr-1"></i> Nuevo producto
+            </button>
+            <button class="btn btn-outline-light" data-toggle="modal" data-target="#modalAjuste">
+                <i class="fas fa-percentage mr-1"></i> Ajuste masivo
+            </button>
+        </div>
+    </div>
+
+    <?php if (!$hasMayorista || !$hasTipo) { ?>
+        <div class="alert alert-warning">
+            Falta aplicar `sql/2026_mayorista_armazones.sql` para habilitar precio mayorista y tipo de producto en toda la interfaz.
+        </div>
+    <?php } ?>
+
+    <?php echo $alert; ?>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="stat-box">
+                <span>Total productos</span>
+                <strong><?php echo $query ? mysqli_num_rows($query) : 0; ?></strong>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-box">
+                <span>Con stock</span>
+                <strong><?php echo mysqli_num_rows(mysqli_query($conexion, "SELECT 1 FROM producto WHERE existencia > 0")); ?></strong>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-box">
+                <span>Sin stock</span>
+                <strong><?php echo mysqli_num_rows(mysqli_query($conexion, "SELECT 1 FROM producto WHERE existencia <= 0")); ?></strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-modern">
+        <div class="card-header card-header-modern">
+            <i class="fas fa-list mr-2"></i> Catalogo
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover custom-dt-init" id="tbl">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Codigo</th>
+                            <th>Descripcion</th>
+                            <th>Marca</th>
+                            <?php if ($hasTipo) { ?><th>Tipo</th><?php } ?>
+                            <th>Minorista</th>
+                            <?php if ($hasMayorista) { ?><th>Mayorista</th><?php } ?>
+                            <?php if ($hasPrecioBruto) { ?><th>Base</th><?php } ?>
+                            <th>Stock</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ($query) {
+                            while ($data = mysqli_fetch_assoc($query)) {
+                                $estado = (int) $data['estado'] === 1
+                                    ? '<span class="badge badge-success">Activo</span>'
+                                    : '<span class="badge badge-secondary">Inactivo</span>';
+                                $stockClass = (int) $data['existencia'] > 0 ? 'text-success' : 'text-danger';
+                        ?>
+                            <tr>
+                                <td><?php echo $data['codproducto']; ?></td>
+                                <td><?php echo htmlspecialchars($data['codigo']); ?></td>
+                                <td><?php echo htmlspecialchars($data['descripcion']); ?></td>
+                                <td><?php echo htmlspecialchars($data['marca']); ?></td>
+                                <?php if ($hasTipo) { ?><td><?php echo ucfirst($data['tipo']); ?></td><?php } ?>
+                                <td><?php echo number_format((float) $data['precio'], 2, ',', '.'); ?></td>
+                                <?php if ($hasMayorista) { ?><td><?php echo number_format((float) $data['precio_mayorista'], 2, ',', '.'); ?></td><?php } ?>
+                                <?php if ($hasPrecioBruto) { ?><td><?php echo number_format((float) $data['precio_bruto'], 2, ',', '.'); ?></td><?php } ?>
+                                <td class="<?php echo $stockClass; ?>"><?php echo (int) $data['existencia']; ?></td>
+                                <td><?php echo $estado; ?></td>
+                                <td>
+                                    <a href="agregar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-primary" title="Stock">
+                                        <i class="fas fa-layer-group"></i>
+                                    </a>
+                                    <a href="editar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-success" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <?php if ((int) $data['estado'] === 1) { ?>
+                                        <a href="inactivar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-warning confirmar-inactivar" title="Inactivar">
+                                            <i class="fas fa-ban"></i>
+                                        </a>
+                                    <?php } else { ?>
+                                        <a href="activar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-info" title="Activar">
+                                            <i class="fas fa-check"></i>
+                                        </a>
+                                    <?php } ?>
+                                </td>
+                            </tr>
+                        <?php }
+                        } ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalProducto" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Nuevo producto</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <form method="post">
+                <input type="hidden" name="action" value="crear_producto">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Codigo</label>
+                                <input type="text" name="codigo" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="form-group">
+                                <label>Descripcion</label>
+                                <input type="text" name="producto" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Marca</label>
+                                <input type="text" name="marca" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Precio minorista</label>
+                                <input type="number" step="0.01" min="0" name="precio" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Precio mayorista</label>
+                                <input type="number" step="0.01" min="0" name="precio_mayorista" class="form-control" value="0">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Stock inicial</label>
+                                <input type="number" min="0" name="cantidad" class="form-control" value="0">
+                            </div>
+                        </div>
+                        <?php if ($hasPrecioBruto) { ?>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label>Precio base</label>
+                                    <input type="number" step="0.01" min="0" name="precio_bruto" class="form-control" value="0">
+                                </div>
+                            </div>
+                        <?php } ?>
+                        <?php if ($hasTipo) { ?>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label>Tipo</label>
+                                    <select name="tipo" class="form-control">
+                                        <option value="armazon">Armazon</option>
+                                        <option value="accesorio">Accesorio</option>
+                                    </select>
+                                </div>
+                            </div>
+                        <?php } ?>
+                        <?php if ($hasCosto) { ?>
+                            <div class="col-md-12">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" name="costo" id="costo">
+                                    <label class="form-check-label" for="costo">Marcar como costo directo</label>
+                                </div>
+                            </div>
+                        <?php } ?>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" type="submit">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAjuste" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">Actualizacion masiva</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <form method="post">
+                <input type="hidden" name="action" value="ajuste_masivo">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Aplicar sobre</label>
+                        <select name="objetivo_precio" class="form-control">
+                            <option value="minorista">Precio minorista</option>
+                            <?php if ($hasMayorista) { ?><option value="mayorista">Precio mayorista</option><?php } ?>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label>Porcentaje</label>
+                        <input type="number" step="0.01" name="porcentaje" class="form-control" placeholder="Ej: 12.5 para subir, -5 para bajar">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-info text-white" type="submit">Aplicar ajuste</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<?php include_once "includes/footer.php"; ?>

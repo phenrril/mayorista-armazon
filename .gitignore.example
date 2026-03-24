@@ -1,0 +1,75 @@
+# Certificados AFIP
+/certificados-afip/
+*.crt
+*.key
+*.pem
+
+# Composer
+/vendor/
+composer.lock
+
+# Configuración local
+/config/local.php
+conexion_local.php
+
+# Logs
+*.log
+/logs/
+/storage/logs/
+
+# Base de datos
+*.sql
+*.sqlite
+mysql-data/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporales
+/tmp/
+/temp/
+*.tmp
+
+# Backups
+backup/
+*.backup
+*.bak
+
+# Tickets de Acceso AFIP
+/storage/afip_ta/
+
+# PDFs generados
+/pdfs_generados/
+/facturas_generadas/
+/storage/facturas_pdf/
+
+# Cache
+cache/
+*.cache
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Node modules (si usas NPM)
+node_modules/
+package-lock.json
+
+# Uploads de usuarios
+/uploads/
+/imagenes/clientes/
+/imagenes/productos/
+
+# Archivo de instalación
+.facturacion_installed
+
