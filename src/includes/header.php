@@ -3,7 +3,7 @@
 // session_start(); ya no es necesario aquí
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
     <meta charset="utf-8" />
@@ -11,104 +11,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <meta name="description" content="" />
     <meta name="author" content="" />
-    <title>Panel de Administración</title>
+    <title>Armazón | Panel</title>
     
     <!-- Preload recursos críticos -->
     <link rel="preload" href="../assets/css/styles.css" as="style">
     <link rel="preload" href="../assets/css/dataTables.bootstrap4.min.css" as="style">
     
-    <!-- Cargar CSS crítico inline para evitar FOUC -->
-    <style>
-        /* Estilos críticos para botones - cargar inmediatamente */
-        .btn-action {
-            padding: 6px 12px !important;
-            border-radius: 8px !important;
-            border: none !important;
-            transition: all 0.3s !important;
-            margin-right: 5px !important;
-            display: inline-block !important;
-            text-align: center !important;
-            vertical-align: middle !important;
-            cursor: pointer !important;
-            font-size: 0.875rem !important;
-            line-height: 1.5 !important;
-        }
-        
-        .btn-action:hover {
-            transform: scale(1.1) !important;
-        }
-        
-        .btn-primary.btn-sm.btn-action {
-            color: #fff !important;
-            background-color: #007bff !important;
-            border-color: #007bff !important;
-        }
-        
-        .btn-success.btn-sm.btn-action {
-            color: #fff !important;
-            background-color: #28a745 !important;
-            border-color: #28a745 !important;
-        }
-        
-        .btn-danger.btn-sm.btn-action {
-            color: #fff !important;
-            background-color: #dc3545 !important;
-            border-color: #dc3545 !important;
-        }
-        
-        .badge-custom {
-            padding: 6px 12px !important;
-            border-radius: 20px !important;
-            font-size: 0.85rem !important;
-            font-weight: 600 !important;
-            display: inline-block !important;
-        }
-        
-        .badge-success {
-            color: #fff !important;
-            background-color: #28a745 !important;
-        }
-        
-        .badge-info {
-            color: #fff !important;
-            background-color: #17a2b8 !important;
-        }
-        
-        .badge-secondary {
-            color: #fff !important;
-            background-color: #6c757d !important;
-        }
-        
-        /* Asegurar que los botones se muestren correctamente desde el inicio */
-        .btn-group {
-            display: inline-flex !important;
-            vertical-align: middle !important;
-        }
-        
-        .btn-sm {
-            padding: 0.25rem 0.5rem !important;
-            font-size: 0.875rem !important;
-            line-height: 1.5 !important;
-            border-radius: 0.2rem !important;
-        }
-        
-        /* Asegurar que los badges se muestren correctamente */
-        .badge {
-            display: inline-block !important;
-            padding: 0.25em 0.4em !important;
-            font-size: 75% !important;
-            font-weight: 700 !important;
-            line-height: 1 !important;
-            text-align: center !important;
-            white-space: nowrap !important;
-            vertical-align: baseline !important;
-            border-radius: 0.25rem !important;
-        }
-    </style>
-    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="../assets/css/styles.css" rel="stylesheet" />
     <link href="../assets/css/dataTables.bootstrap4.min.css" rel="stylesheet" crossorigin="anonymous" />
     <link rel="stylesheet" href="../assets/js/jquery-ui/jquery-ui.min.css">
+    <link href="../assets/css/dark-premium.css" rel="stylesheet" />
     
     <!-- Cargar Font Awesome de forma asíncrona para no bloquear renderizado -->
     <script src="../assets/js/all.min.js" crossorigin="anonymous" defer></script>
@@ -119,9 +34,9 @@
     
 </head>
 
-<body class="sb-nav-fixed">
+<body class="sb-nav-fixed app-shell">
     <nav class="sb-topnav navbar navbar-expand navbar-dark bg-dark">
-        <a class="navbar-brand" href="index.php">Facturador</a>
+        <a class="navbar-brand" href="index.php">Armazón</a>
         <button class="btn btn-link btn-sm order-1 order-lg-0" id="sidebarToggle" href="#"><i class="fas fa-bars"></i></button>
 
         <!-- Navbar-->

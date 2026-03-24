@@ -39,135 +39,6 @@ if ($_POST) {
 }
 ?>
 
-<style>
-/* Estilos modernos para configuración */
-.config-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.page-header-modern {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 30px;
-    border-radius: 15px;
-    margin-bottom: 30px;
-    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
-    text-align: center;
-}
-
-.page-header-modern h2 {
-    margin: 0;
-    font-weight: 600;
-    font-size: 2rem;
-}
-
-.card-modern {
-    border: none;
-    border-radius: 15px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
-    transition: transform 0.3s, box-shadow 0.3s;
-    margin-bottom: 25px;
-    overflow: hidden;
-}
-
-.card-modern:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
-}
-
-.card-header-modern {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    color: white;
-    padding: 20px 25px;
-    font-weight: 600;
-    font-size: 1.1rem;
-    border: none;
-}
-
-.card-header-modern-warning {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
-}
-
-.card-body-modern {
-    padding: 25px;
-}
-
-.form-control-modern {
-    border: 2px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 12px 15px;
-    font-size: 0.95rem;
-    transition: all 0.3s;
-}
-
-.form-control-modern:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-    outline: none;
-}
-
-.btn-modern {
-    border-radius: 10px;
-    padding: 12px 30px;
-    font-weight: 600;
-    transition: all 0.3s;
-    border: none;
-    font-size: 1rem;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
-
-.btn-modern:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-}
-
-.btn-modern-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-}
-
-.btn-modern-primary:hover {
-    background: linear-gradient(135deg, #5568d3 0%, #6a4190 100%);
-    color: white;
-}
-
-.btn-modern-warning {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
-}
-
-.btn-modern-warning:hover {
-    background: linear-gradient(135deg, #e081eb 0%, #f04a59 100%);
-    color: white;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(240, 74, 89, 0.4);
-}
-
-.fade-in-container {
-    animation: fadeIn 0.6s ease-in;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@media (max-width: 768px) {
-    .page-header-modern h2 {
-        font-size: 1.5rem;
-    }
-}
-</style>
-
 <div class="config-container fade-in-container">
     <!-- Encabezado -->
     <div class="page-header-modern">
@@ -241,7 +112,7 @@ if ($_POST) {
         <div class="col-12">
             <?php if ($sistema_instalado) { ?>
             <!-- Sistema ya instalado - Mostrar estado y opción de reinstalar -->
-            <div class="alert" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; border: none; border-radius: 15px; padding: 20px; margin-bottom: 20px;">
+            <div class="alert setup-status-alert alert-success mb-4">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h5><i class="fas fa-check-circle mr-2"></i> Sistema de Facturación Electrónica Instalado</h5>
@@ -255,8 +126,8 @@ if ($_POST) {
             <?php } ?>
             
             <!-- Card de instalación (siempre visible) -->
-            <div class="card card-modern" style="border: 3px solid <?php echo $sistema_instalado ? '#28a745' : '#667eea'; ?>;">
-                <div class="card-header-modern" style="background: linear-gradient(135deg, <?php echo $sistema_instalado ? '#11998e 0%, #38ef7d' : '#667eea 0%, #764ba2'; ?> 100%);">
+            <div class="card card-modern setup-install-card <?php echo $sistema_instalado ? 'is-installed' : 'is-pending'; ?>">
+                <div class="card-header-modern <?php echo $sistema_instalado ? '' : 'card-header-modern-warning'; ?>">
                     <i class="fas fa-<?php echo $sistema_instalado ? 'sync' : 'bolt'; ?> mr-2"></i> 
                     <?php echo $sistema_instalado ? 'Reinstalar / Verificar' : 'Instalación Automática'; ?> - Facturación Electrónica ARCA/AFIP
                 </div>
@@ -276,17 +147,17 @@ if ($_POST) {
                                 <li><i class="fas fa-check-circle text-success mr-2"></i> Configuración inicial del sistema</li>
                             </ul>
                             <?php if ($sistema_instalado) { ?>
-                            <div class="alert alert-warning" style="border-left: 4px solid #ffa500;">
+                            <div class="alert alert-warning setup-note is-warning">
                                 <i class="fas fa-exclamation-triangle mr-2"></i> <strong>Atención:</strong> Solo reinstalá si tuviste problemas en la instalación anterior o si borraste tablas/directorios.
                             </div>
                             <?php } else { ?>
-                            <div class="alert alert-info" style="border-left: 4px solid #667eea;">
+                            <div class="alert alert-info setup-note is-info">
                                 <i class="fas fa-info-circle mr-2"></i> <strong>Nota:</strong> Este proceso instalará todo lo necesario para la facturación electrónica.
                             </div>
                             <?php } ?>
                         </div>
                         <div class="col-md-4 text-center d-flex flex-column justify-content-center">
-                            <button type="button" class="btn btn-lg btn-modern btn-modern-primary mb-3" id="btnInstalarFacturacion" style="font-size: 1.2rem; padding: 20px;">
+                            <button type="button" class="btn btn-lg btn-modern btn-modern-primary setup-cta mb-3" id="btnInstalarFacturacion">
                                 <i class="fas fa-<?php echo $sistema_instalado ? 'sync' : 'rocket'; ?> mr-2"></i> 
                                 <?php echo $sistema_instalado ? 'Reinstalar' : 'Instalar Ahora'; ?>
                             </button>
@@ -300,8 +171,8 @@ if ($_POST) {
                     <div id="resultado-instalacion" class="mt-4">
                         <hr>
                         <h6><i class="fas fa-terminal mr-2"></i> Log de Instalación:</h6>
-                        <div id="log-instalacion" style="background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 8px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.9rem; min-height: 100px;">
-                            <span style="color: #888;">Esperando instalación...</span>
+                        <div id="log-instalacion" class="setup-log">
+                            <span class="setup-log-placeholder">Esperando instalación...</span>
                         </div>
                     </div>
                 </div>

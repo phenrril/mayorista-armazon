@@ -113,50 +113,6 @@ if ($selectedClientId > 0) {
 
 include_once "includes/header.php";
 ?>
-<style>
-.cc-container {
-    max-width: 1500px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.page-header {
-    background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-    color: #fff;
-    border-radius: 18px;
-    padding: 28px;
-    margin-bottom: 24px;
-}
-
-.card-soft {
-    border: none;
-    border-radius: 18px;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
-    margin-bottom: 24px;
-}
-
-.metric-box {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 16px;
-    text-align: center;
-}
-
-.metric-box strong {
-    display: block;
-    font-size: 1.7rem;
-}
-
-.search-box {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 14px 16px;
-    margin-bottom: 18px;
-}
-</style>
-
 <div class="cc-container">
     <div class="page-header">
         <h2><i class="fas fa-file-invoice-dollar mr-2"></i> Cuenta corriente</h2>

@@ -112,35 +112,6 @@ $egresos = $hasEgresos
 
 include_once "includes/header.php";
 ?>
-<style>
-.reportes-container {
-    max-width: 1500px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.page-header {
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-    color: #fff;
-    border-radius: 20px;
-    padding: 30px;
-    margin-bottom: 24px;
-}
-
-.kpi-card {
-    border: none;
-    border-radius: 18px;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
-    margin-bottom: 24px;
-    height: 100%;
-}
-
-.kpi-card strong {
-    display: block;
-    font-size: 1.9rem;
-}
-</style>
-
 <div class="reportes-container">
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap">
         <div>

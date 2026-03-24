@@ -104,53 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_config'])) {
     }
 }
 ?>
-
-<style>
-.config-container {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.page-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 30px;
-    border-radius: 15px;
-    margin-bottom: 30px;
-    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
-}
-
-.card-modern {
-    border: none;
-    border-radius: 15px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
-    margin-bottom: 25px;
-}
-
-.card-header-modern {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 20px 25px;
-    font-weight: 600;
-    border-radius: 15px 15px 0 0;
-}
-
-.form-group label {
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 8px;
-}
-
-.alert-info-modern {
-    background: linear-gradient(135deg, #c2e9fb 0%, #a1c4fd 100%);
-    border: none;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 20px;
-}
-</style>
-
 <div class="config-container">
     <div class="page-header">
         <h2><i class="fas fa-cog mr-3"></i>Configuración de Facturación Electrónica</h2>
@@ -279,8 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_config'])) {
                 </div>
 
                 <div class="text-center mt-4">
-                    <button type="submit" name="guardar_config" class="btn btn-lg" 
-                            style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; border: none; padding: 12px 40px; border-radius: 10px;">
+                    <button type="submit" name="guardar_config" class="btn btn-lg btn-modern btn-success-modern">
                         <i class="fas fa-save mr-2"></i>Guardar Configuración
                     </button>
                 </div>

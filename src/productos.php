@@ -93,52 +93,6 @@ if (!empty($_POST['action']) && $_POST['action'] === 'ajuste_masivo') {
 $query = mysqli_query($conexion, "SELECT * FROM producto ORDER BY codproducto DESC");
 include_once "includes/header.php";
 ?>
-<style>
-.productos-container {
-    max-width: 1450px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.page-header {
-    background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
-    color: #fff;
-    border-radius: 18px;
-    padding: 28px;
-    margin-bottom: 24px;
-}
-
-.card-modern {
-    border: none;
-    border-radius: 18px;
-    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
-    margin-bottom: 24px;
-}
-
-.card-header-modern {
-    background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
-    color: #fff;
-    border-radius: 18px 18px 0 0 !important;
-    padding: 18px 24px;
-    font-weight: 600;
-}
-
-.stat-box {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 16px;
-    text-align: center;
-    height: 100%;
-}
-
-.stat-box strong {
-    display: block;
-    font-size: 1.7rem;
-    color: #0f172a;
-}
-</style>
-
 <div class="productos-container">
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap">
         <div>
