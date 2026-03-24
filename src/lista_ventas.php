@@ -47,37 +47,6 @@ if ($query) {
 
 include_once "includes/header.php";
 ?>
-<style>
-.ventas-container {
-    max-width: 1480px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.page-header {
-    background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
-    color: #fff;
-    border-radius: 18px;
-    padding: 28px;
-    margin-bottom: 24px;
-}
-
-.kpi {
-    background: #fff;
-    border-radius: 16px;
-    padding: 18px;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-    text-align: center;
-    height: 100%;
-}
-
-.kpi strong {
-    display: block;
-    font-size: 1.8rem;
-    color: #0f172a;
-}
-</style>
-
 <div class="ventas-container">
     <div class="page-header">
         <h2><i class="fas fa-receipt mr-2"></i> Ventas</h2>

@@ -117,39 +117,6 @@ $clientesTop = mysqli_query(
 
 include_once "includes/header.php";
 ?>
-<style>
-.estadisticas-container {
-    max-width: 1500px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.hero {
-    background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
-    color: #fff;
-    border-radius: 20px;
-    padding: 30px;
-    margin-bottom: 24px;
-}
-
-.kpi-card {
-    border: none;
-    border-radius: 18px;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
-    height: 100%;
-}
-
-.kpi-card .card-body {
-    padding: 22px;
-}
-
-.kpi-card strong {
-    display: block;
-    font-size: 1.9rem;
-    color: #0f172a;
-}
-</style>
-
 <div class="estadisticas-container">
     <div class="hero">
         <h2><i class="fas fa-chart-line mr-2"></i> Dashboard comercial</h2>

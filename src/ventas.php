@@ -18,190 +18,6 @@ $schemaReady = mayorista_column_exists($conexion, 'producto', 'precio_mayorista'
 
 include_once "includes/header.php";
 ?>
-<style>
-.ventas-container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.page-header {
-    background: linear-gradient(135deg, #243b55 0%, #141e30 100%);
-    color: #fff;
-    border-radius: 18px;
-    padding: 28px 32px;
-    margin-bottom: 24px;
-    box-shadow: 0 15px 35px rgba(20, 30, 48, 0.2);
-}
-
-.page-header h2 {
-    margin: 0;
-    font-weight: 700;
-}
-
-.page-header p {
-    margin: 8px 0 0;
-    opacity: 0.85;
-}
-
-.card-modern {
-    border: none;
-    border-radius: 18px;
-    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
-    overflow: hidden;
-    margin-bottom: 24px;
-}
-
-.card-header-modern {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-    color: #fff;
-    padding: 18px 24px;
-    font-weight: 600;
-    border: 0;
-}
-
-.card-body-modern {
-    padding: 24px;
-}
-
-.form-control-modern,
-.custom-select-modern {
-    border: 2px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 11px 14px;
-}
-
-select.custom-select-modern {
-    height: 48px;
-    padding-right: 40px;
-    line-height: 1.2;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: linear-gradient(45deg, transparent 50%, #64748b 50%), linear-gradient(135deg, #64748b 50%, transparent 50%);
-    background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
-    background-size: 6px 6px, 6px 6px;
-    background-repeat: no-repeat;
-}
-
-.form-control-modern:focus,
-.custom-select-modern:focus {
-    border-color: #6366f1;
-    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.15);
-}
-
-.badge-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
-    border-radius: 999px;
-    background: #eef2ff;
-    color: #4338ca;
-    font-weight: 600;
-}
-
-.cc-metric {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 16px;
-    height: 100%;
-}
-
-.cc-metric h6 {
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    color: #64748b;
-    margin-bottom: 8px;
-}
-
-.cc-value {
-    font-size: 1.55rem;
-    font-weight: 700;
-    color: #0f172a;
-}
-
-.product-search-box {
-    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
-    border-radius: 18px;
-    padding: 24px;
-    border: 1px solid #fed7aa;
-}
-
-.table-modern thead th {
-    background: #1e293b;
-    color: #fff;
-    border: 0;
-    vertical-align: middle;
-}
-
-.table-modern td {
-    vertical-align: middle;
-}
-
-.precio-editable-input {
-    width: 115px;
-    border: 1px dashed #94a3b8;
-    border-radius: 8px;
-    padding: 6px 8px;
-    text-align: right;
-    background: #fffef3;
-}
-
-.total-display {
-    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-    color: #fff;
-    border-radius: 18px;
-    padding: 28px;
-    text-align: center;
-    box-shadow: 0 12px 35px rgba(16, 185, 129, 0.25);
-}
-
-.total-display p {
-    margin: 0;
-    opacity: 0.88;
-}
-
-.total-display .total-amount {
-    font-size: 2.5rem;
-    font-weight: 700;
-}
-
-.acciones-venta {
-    margin-top: 18px;
-}
-
-.btn-modern {
-    border: 0;
-    border-radius: 12px;
-    padding: 12px 22px;
-    font-weight: 600;
-}
-
-.btn-primary-modern {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-    color: #fff;
-}
-
-.btn-success-modern {
-    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-    color: #fff;
-}
-
-.btn-outline-modern {
-    background: #fff;
-    border: 1px solid #cbd5e1;
-    color: #334155;
-}
-
-.empty-state {
-    text-align: center;
-    color: #64748b;
-    padding: 36px 0;
-}
-</style>
-
 <div class="ventas-container">
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap">
         <div>
@@ -298,7 +114,7 @@ select.custom-select-modern {
                 <div class="card-body card-body-modern">
                     <div class="form-group">
                         <label>Método de pago del importe abonado</label>
-                        <div class="d-flex flex-wrap" style="gap:12px;">
+                        <div class="d-flex flex-wrap premium-gap">
                             <label class="badge-chip"><input type="radio" name="pago" value="1" checked> Efectivo</label>
                             <label class="badge-chip"><input type="radio" name="pago" value="2"> Crédito</label>
                             <label class="badge-chip"><input type="radio" name="pago" value="3"> Débito</label>
@@ -367,7 +183,7 @@ select.custom-select-modern {
                 <div class="total-amount" id="total-amount">$0,00</div>
             </div>
 
-            <div class="d-flex flex-wrap justify-content-end acciones-venta" style="gap:12px;">
+            <div class="d-flex flex-wrap justify-content-end acciones-venta premium-gap">
                 <button class="btn btn-outline-modern btn-modern" id="btn_recalcular" type="button">
                     <i class="fas fa-sync-alt mr-1"></i> Recalcular
                 </button>
@@ -382,7 +198,7 @@ select.custom-select-modern {
 <div id="nuevo_cliente_venta" class="modal fade" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
-            <div class="modal-header" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color:#fff;">
+            <div class="modal-header modal-header-accent">
                 <h5 class="modal-title"><i class="fas fa-user-plus mr-2"></i> Nuevo cliente</h5>
                 <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>

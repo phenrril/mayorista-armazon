@@ -48,124 +48,6 @@ if ($column_exists) {
 }
 ?>
 
-<style>
-.reporte-container {
-    max-width: 1600px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.page-header-modern {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 30px;
-    border-radius: 15px;
-    margin-bottom: 30px;
-    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
-}
-
-.page-header-modern h2 {
-    margin: 0;
-    font-weight: 600;
-    font-size: 2rem;
-}
-
-.section-header {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    color: white;
-    padding: 20px;
-    border-radius: 12px 12px 0 0;
-    font-weight: 600;
-    font-size: 1.2rem;
-}
-
-.section-header-danger {
-    background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
-    color: white;
-    padding: 20px;
-    border-radius: 12px 12px 0 0;
-    font-weight: 600;
-    font-size: 1.2rem;
-}
-
-.card-modern {
-    border: none;
-    border-radius: 15px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
-    margin-bottom: 25px;
-    overflow: hidden;
-}
-
-.table-modern {
-    border-collapse: separate;
-    border-spacing: 0;
-}
-
-.table-modern thead th {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.85rem;
-    letter-spacing: 0.5px;
-    padding: 15px;
-    border: none;
-}
-
-.table-modern tbody tr {
-    transition: all 0.3s;
-}
-
-.table-modern tbody tr:hover {
-    background-color: #f8f9fa;
-    transform: scale(1.01);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-}
-
-.table-modern tbody td {
-    padding: 15px;
-    vertical-align: middle;
-    border-bottom: 1px solid #e9ecef;
-}
-
-.badge-custom {
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-.total-summary {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
-    padding: 25px;
-    border-radius: 15px;
-    margin-bottom: 30px;
-    box-shadow: 0 10px 30px rgba(245, 87, 108, 0.3);
-}
-
-.total-summary h3 {
-    font-weight: 700;
-    margin: 0 0 20px 0;
-}
-
-.summary-item {
-    background: rgba(255, 255, 255, 0.2);
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 10px;
-}
-
-.summary-item strong {
-    font-size: 1.1rem;
-}
-
-.summary-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-}
-</style>
-
 <div class="reporte-container">
     <div class="page-header-modern">
         <h2><i class="fas fa-tag mr-2"></i> Reporte de Costo de Productos</h2>
@@ -178,14 +60,14 @@ if ($column_exists) {
         <div class="row">
             <div class="col-md-6">
                 <div class="summary-item">
-                    <strong><i class="fas fa-circle" style="color: rgba(255,255,255,0.8);"></i> productos:</strong><br>
+                    <strong><i class="fas fa-circle summary-dot-light"></i> productos:</strong><br>
                     <span class="summary-value"><?php echo count($productos_sin_costo); ?> productos</span><br>
                     <small>Total de valor: $<?php echo number_format($total_sin_costo, 2); ?></small>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="summary-item">
-                    <strong><i class="fas fa-circle" style="color: rgba(0,0,0,0.8);"></i> productos:</strong><br>
+                    <strong><i class="fas fa-circle summary-dot-dark"></i> productos:</strong><br>
                     <span class="summary-value"><?php echo count($productos_con_costo); ?> productos</span><br>
                     <small>Total de valor: $<?php echo number_format($total_con_costo, 2); ?></small>
                 </div>
@@ -198,7 +80,7 @@ if ($column_exists) {
         <div class="col-lg-6">
             <div class="card card-modern">
                 <div class="section-header">
-                    <i class="fas fa-circle" style="color: white;"></i> productos
+                    <i class="fas fa-circle summary-dot-light"></i> productos
                     <span class="badge badge-light float-right"><?php echo count($productos_sin_costo); ?></span>
                 </div>
                 <div class="table-responsive">
@@ -256,7 +138,7 @@ if ($column_exists) {
         <div class="col-lg-6">
             <div class="card card-modern">
                 <div class="section-header-danger">
-                    <i class="fas fa-circle" style="color: black;"></i> productos
+                    <i class="fas fa-circle summary-dot-dark"></i> productos
                     <span class="badge badge-light float-right"><?php echo count($productos_con_costo); ?></span>
                 </div>
                 <div class="table-responsive">

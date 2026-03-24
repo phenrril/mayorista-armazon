@@ -19,4 +19,13 @@
         e.preventDefault();
         $("body").toggleClass("sb-sidenav-toggled");
     });
+
+    function syncMobileSidebar() {
+        if (window.innerWidth < 992) {
+            $("body").removeClass("sb-sidenav-toggled");
+        }
+    }
+
+    syncMobileSidebar();
+    $(window).on("resize", syncMobileSidebar);
 })(jQuery);

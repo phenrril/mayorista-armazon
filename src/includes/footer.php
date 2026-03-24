@@ -1,6 +1,6 @@
 </div>
 </main>
-<footer class="py-4 bg-light mt-auto">
+<footer class="site-footer py-4 mt-auto">
     <div class="container-fluid">
         <div class="d-flex align-items-center justify-content-between small">
             <div class="text-muted">Copyright &copy; Dev by S&M Informatica</div>
@@ -16,8 +16,8 @@
 </div>
 <div id="nuevo_pass" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="my-modal-title" aria-hidden="true">
     <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
+            <div class="modal-content">
+                <div class="modal-header">
                 <h5 class="modal-title">Cambiar contraseña</h5>
                 <button class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
