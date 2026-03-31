@@ -751,6 +751,25 @@ textarea.form-control {
   cursor: default;
 }
 
+.swal2-container {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 20000 !important;
+}
+
+.swal2-container.swal2-center {
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.swal2-container:not(.swal2-no-backdrop):not(.swal2-toast-shown) {
+  background: rgba(2, 2, 3, 0.72) !important;
+}
+
+.swal2-popup {
+  margin: 0 auto !important;
+}
+
 .total-display {
   padding: 1.75rem;
   text-align: center;
