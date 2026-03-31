@@ -1,13 +1,17 @@
 <?php 
 require "../conexion.php";
 session_start();
+if (!($conexion instanceof mysqli)) {
+    exit;
+}
 
 
 $id_venta = $_POST['idventa'];
 $id_abona = $_POST['idabona'];
 if($id_venta == "" || $id_abona == ""){
     echo "<script>Swal.fire({
-        position: 'top-mid',
+        position: 'center',
+        toast: false,
         icon: 'error',
         title: 'Complete ambos campos',
         showConfirmButton: false,
@@ -20,7 +24,8 @@ $valueventa = mysqli_fetch_assoc($query);
 
 if(mysqli_num_rows($query) == 0){
     echo "<script>Swal.fire({
-        position: 'top-mid',
+        position: 'center',
+        toast: false,
         icon: 'error',
         title: 'Venta inexistente',
         showConfirmButton: false,
@@ -32,7 +37,8 @@ if (mysqli_num_rows($query) > 0) {
     
     if($valueventa['resto'] == 0){
         echo "<script>Swal.fire({
-            position: 'top-mid',
+            position: 'center',
+            toast: false,
             icon: 'error',
             title: 'La venta no tiene resto que abonar',
             showConfirmButton: false,
@@ -48,7 +54,8 @@ $abonatotal = $abonatabla + $id_abona;
 $resto = $valueventa['resto'];
 if($resto < $id_abona){
     echo "<script>Swal.fire({
-        position: 'top-mid',
+        position: 'center',
+        toast: false,
         icon: 'error',
         title: 'El abono es mayor al resto',
         showConfirmButton: false,
@@ -68,7 +75,8 @@ if ($update !== false && $update2 !== false && $update3 !== false){
     $result = mysqli_affected_rows($conexion);
     if($result > 0){
         echo "<script>Swal.fire({
-            position: 'top-mid',
+            position: 'center',
+            toast: false,
             icon: 'success',
             title: 'Abono realizado',
             showConfirmButton: false,
@@ -81,7 +89,8 @@ if ($update !== false && $update2 !== false && $update3 !== false){
     }
         else{
             echo "<script>Swal.fire({
-                position: 'top-mid',
+                position: 'center',
+                toast: false,
                 icon: 'error',
                 title: 'Error actualizando venta',
                 showConfirmButton: false,
@@ -92,7 +101,8 @@ if ($update !== false && $update2 !== false && $update3 !== false){
 
 else{
     echo "<script>Swal.fire({
-        position: 'top-mid',
+        position: 'center',
+        toast: false,
         icon: 'error',
         title: 'Error actualizando la venta',
         showConfirmButton: false,

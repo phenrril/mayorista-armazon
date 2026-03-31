@@ -1,6 +1,9 @@
 <?php 
 require "../conexion.php";
 session_start();
+if (!($conexion instanceof mysqli)) {
+    exit;
+}
 $id = $_SESSION['idUser'];
 $valor = $_POST['valor'];
 if($_POST['valor'] == '0' || $_POST['valor'] == 'null'){
@@ -8,7 +11,8 @@ if($_POST['valor'] == '0' || $_POST['valor'] == 'null'){
     <script>
     swal.fire
     ({
-        position: 'top-end',
+        position: 'center',
+        toast: false,
         showConfirmButton: false,
         title: 'Error',
         text: 'El valor no puede ser 0',
@@ -38,7 +42,8 @@ case 'ingreso':
     <script>
     swal.fire
     ({
-        position: 'top-end',
+        position: 'center',
+        toast: false,
         showConfirmButton: false,
         title: 'Ingreso agregado',
         text: 'El Ingreso se ha agregado correctamente',
@@ -54,7 +59,8 @@ case 'egreso':
     <script>
     swal.fire
     ({
-        position: 'top-end',
+        position: 'center',
+        toast: false,
         showConfirmButton: false,
         title: 'Egreso Agregado',
         text: 'El Egreso se ha agregado correctamente',
@@ -68,7 +74,8 @@ default:
     <script>
     swal.fire
     ({
-        position: 'top-end',
+        position: 'center',
+        toast: false,
         showConfirmButton: false,
         title: 'Error',
         text: 'Error al agregar',

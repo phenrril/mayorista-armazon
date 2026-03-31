@@ -5,17 +5,23 @@ function formatCurrency(value) {
     });
 }
 
+function showCenteredAlert(options) {
+    return Swal.fire(Object.assign({
+        position: 'center',
+        toast: false,
+        showConfirmButton: false
+    }, options));
+}
+
 function btnCambiar(e) {
     e.preventDefault();
     const actual = $('#actual').val();
     const nueva = $('#nueva').val();
 
     if (!actual || !nueva) {
-        Swal.fire({
-            position: 'top-end',
+        showCenteredAlert({
             icon: 'error',
             title: 'Completa ambos campos',
-            showConfirmButton: false,
             timer: 2000
         });
         return;
@@ -31,29 +37,23 @@ function btnCambiar(e) {
         },
         success: function (response) {
             if (response === 'ok') {
-                Swal.fire({
-                    position: 'top-end',
+                showCenteredAlert({
                     icon: 'success',
                     title: 'Contraseña actualizada',
-                    showConfirmButton: false,
                     timer: 2000
                 });
                 $('#frmPass')[0].reset();
                 $('#nuevo_pass').modal('hide');
             } else if (response === 'dif') {
-                Swal.fire({
-                    position: 'top-end',
+                showCenteredAlert({
                     icon: 'error',
                     title: 'La contraseña actual es incorrecta',
-                    showConfirmButton: false,
                     timer: 2200
                 });
             } else {
-                Swal.fire({
-                    position: 'top-end',
+                showCenteredAlert({
                     icon: 'error',
                     title: 'No se pudo actualizar la contraseña',
-                    showConfirmButton: false,
                     timer: 2200
                 });
             }
@@ -198,21 +198,17 @@ function registrarDetalleManual(id, cant, precio) {
             }
 
             if (normalized === 'stock_insuficiente') {
-                Swal.fire({
-                    position: 'top-end',
+                showCenteredAlert({
                     icon: 'warning',
                     title: 'Stock insuficiente',
-                    showConfirmButton: false,
                     timer: 2200
                 });
                 return;
             }
 
-            Swal.fire({
-                position: 'top-end',
+            showCenteredAlert({
                 icon: 'error',
                 title: 'No se pudo agregar el producto',
-                showConfirmButton: false,
                 timer: 2200
             });
         }
@@ -222,11 +218,9 @@ function registrarDetalleManual(id, cant, precio) {
 function actualizarPrecio(id, nuevoPrecio, inputEl) {
     const precio = parseFloat(nuevoPrecio);
     if (isNaN(precio) || precio < 0) {
-        Swal.fire({
-            position: 'top-end',
+        showCenteredAlert({
             icon: 'warning',
             title: 'Precio inválido',
-            showConfirmButton: false,
             timer: 2000
         });
         listar();
@@ -250,11 +244,9 @@ function actualizarPrecio(id, nuevoPrecio, inputEl) {
                 calcularVenta();
                 listar();
             } else if (response === 'limite_edicion') {
-                Swal.fire({
-                    position: 'top-end',
+                showCenteredAlert({
                     icon: 'warning',
                     title: 'Ese precio ya fue editado una vez',
-                    showConfirmButton: false,
                     timer: 2500
                 });
                 listar();
@@ -287,11 +279,9 @@ function guardarNuevoCliente() {
     const direccion = $('#direccion_cliente').val().trim();
 
     if (!nombre || !telefono || !direccion) {
-        Swal.fire({
-            position: 'top-end',
+        showCenteredAlert({
             icon: 'warning',
             title: 'Completa nombre, teléfono y dirección',
-            showConfirmButton: false,
             timer: 2200
         });
         return;
@@ -310,11 +300,9 @@ function guardarNuevoCliente() {
         },
         success: function (response) {
             if (!response.success) {
-                Swal.fire({
-                    position: 'top-end',
+                showCenteredAlert({
                     icon: 'error',
                     title: response.mensaje || 'No se pudo guardar el cliente',
-                    showConfirmButton: false,
                     timer: 2200
                 });
                 return;
@@ -327,11 +315,9 @@ function guardarNuevoCliente() {
             $('#tel_cliente').val(response.cliente.telefono);
             $('#dir_cliente').val(response.cliente.direccion);
             actualizarPanelCliente(response.cliente.id);
-            Swal.fire({
-                position: 'top-end',
+            showCenteredAlert({
                 icon: 'success',
                 title: response.mensaje,
-                showConfirmButton: false,
                 timer: 1800
             });
         }
@@ -478,11 +464,9 @@ $(function () {
         const abona = parseFloat($('#abona').val()) || 0;
 
         if (!idCliente) {
-            Swal.fire({
-                position: 'top-end',
+            showCenteredAlert({
                 icon: 'warning',
                 title: 'Selecciona un cliente',
-                showConfirmButton: false,
                 timer: 2200
             });
             return;
@@ -502,22 +486,18 @@ $(function () {
             },
             success: function (response) {
                 if (response.mensaje === 'error') {
-                    Swal.fire({
-                        position: 'top-end',
+                    showCenteredAlert({
                         icon: 'error',
                         title: response.detalle || 'No se pudo generar la venta',
-                        showConfirmButton: false,
                         timer: 3200
                     });
                     return;
                 }
 
-                Swal.fire({
-                    position: 'top-end',
+                showCenteredAlert({
                     icon: 'success',
                     title: 'Venta generada',
                     text: 'Venta #' + response.id_venta,
-                    showConfirmButton: false,
                     timer: 2000
                 });
 
@@ -530,11 +510,9 @@ $(function () {
                 const detalle = xhr.responseJSON && xhr.responseJSON.detalle
                     ? xhr.responseJSON.detalle
                     : 'No se pudo generar la venta.';
-                Swal.fire({
-                    position: 'top-end',
+                showCenteredAlert({
                     icon: 'error',
                     title: detalle,
-                    showConfirmButton: false,
                     timer: 3200
                 });
             }
