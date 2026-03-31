@@ -1,8 +1,15 @@
 <?php 
 session_start();
 require_once "../conexion.php";
+require_once "includes/mayorista_helpers.php";
 if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
     header("Location: ../");
+    exit();
+}
+if (!($conexion instanceof mysqli)) {
+    include_once "includes/header.php";
+    echo '<div class="alert alert-danger mt-4" role="alert">No se pudo establecer la conexión con la base de datos.</div>';
+    include_once "includes/footer.php";
     exit();
 }
 $id_user = $_SESSION['idUser'];
@@ -17,7 +24,10 @@ if (empty($existe) && $id_user != 1){
 include_once "includes/header.php";
 $query = mysqli_query($conexion, "SELECT * FROM configuracion");
 $data = mysqli_fetch_assoc($query);
-if ($_POST) {
+$reset_sistema_habilitado = mayorista_es_admin($id_user);
+$reset_sistema_ejecutado = $reset_sistema_habilitado ? mayorista_reset_sistema_fue_ejecutado($conexion) : false;
+$reset_sistema_token = $reset_sistema_habilitado ? mayorista_generar_token_reset_sistema() : '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion'])) {
     $alert = '';
     if (empty($_POST['nombre']) || empty($_POST['telefono']) || empty($_POST['email']) || empty($_POST['direccion'])) {
         $alert = '<div class="alert alert-danger" role="alert">
@@ -74,7 +84,7 @@ if ($_POST) {
                         </div>
                         <?php echo isset($alert) ? $alert : ''; ?>
                         <div class="text-center">
-                            <button type="submit" class="btn btn-modern btn-modern-primary">
+                            <button type="submit" name="guardar_configuracion" value="1" class="btn btn-modern btn-modern-primary">
                                 <i class="fas fa-save mr-2"></i> Guardar Cambios
                             </button>
                         </div>
@@ -99,6 +109,61 @@ if ($_POST) {
             </div>
         </div>
     </div>
+
+    <?php if ($reset_sistema_habilitado) { ?>
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card card-modern border border-danger">
+                <div class="card-header-modern bg-danger text-white">
+                    <i class="fas fa-exclamation-triangle mr-2"></i> Zona peligrosa
+                </div>
+                <div class="card-body card-body-modern">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h5 class="text-danger mb-3">
+                                <i class="fas fa-radiation mr-2"></i> Reset definitivo del sistema
+                            </h5>
+                            <p class="mb-2">
+                                Esta acción elimina todos los datos operativos, recrea un único usuario administrador y deja el reset bloqueado para siempre.
+                            </p>
+                            <ul class="mb-3">
+                                <li>Borra clientes, productos, ventas, usuarios y movimientos operativos.</li>
+                                <li>Recrea únicamente el usuario <strong>admin</strong>.</li>
+                                <li>Exige escribir la frase exacta <code>ELIMINAR TODO</code>.</li>
+                            </ul>
+                            <?php if ($reset_sistema_ejecutado) { ?>
+                            <div class="alert alert-success mb-0" role="alert">
+                                <i class="fas fa-lock mr-2"></i> El reset ya fue ejecutado y quedó bloqueado permanentemente.
+                            </div>
+                            <?php } else { ?>
+                            <div class="alert alert-danger mb-0" role="alert">
+                                <i class="fas fa-shield-alt mr-2"></i> Disponible solo para el administrador principal (<code>idusuario = 1</code>) y protegido por validación de servidor.
+                            </div>
+                            <?php } ?>
+                        </div>
+                        <div class="col-md-4 text-center d-flex flex-column justify-content-center mt-3 mt-md-0">
+                            <button
+                                type="button"
+                                class="btn btn-lg btn-danger"
+                                id="btnResetSistema"
+                                data-endpoint="reset_sistema.php"
+                                data-token="<?php echo htmlspecialchars($reset_sistema_token, ENT_QUOTES, 'UTF-8'); ?>"
+                                <?php echo $reset_sistema_ejecutado ? 'disabled' : ''; ?>
+                            >
+                                <i class="fas fa-trash-alt mr-2"></i>
+                                <?php echo $reset_sistema_ejecutado ? 'Reset bloqueado' : 'Ejecutar reset único'; ?>
+                            </button>
+                            <small class="text-muted mt-3">
+                                Acción irreversible y de un solo uso.
+                            </small>
+                        </div>
+                    </div>
+                    <div id="resultado-reset-sistema" class="mt-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php } ?>
 
     <?php 
     // Verificar si el sistema de facturación ya está instalado
@@ -208,8 +273,121 @@ window.addEventListener('load', function() {
         console.log('✅ SweetAlert2 cargado');
     }
 
+    initResetSistema();
     initInstalador();
 });
+
+function initResetSistema() {
+    const $button = $('#btnResetSistema');
+    if ($button.length === 0) {
+        return;
+    }
+
+    $button.on('click', function() {
+        Swal.fire({
+            title: 'Reset definitivo del sistema',
+            html: `
+                <div class="text-left">
+                    <p>Esta acción va a borrar los datos operativos y dejar un único usuario administrador.</p>
+                    <p class="text-danger mb-2"><strong>No se puede deshacer.</strong></p>
+                    <p class="mb-0">Para continuar escribí exactamente: <code>ELIMINAR TODO</code></p>
+                </div>
+            `,
+            icon: 'warning',
+            input: 'text',
+            inputLabel: 'Frase de confirmación',
+            inputPlaceholder: 'ELIMINAR TODO',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="fas fa-trash-alt mr-2"></i>Ejecutar reset',
+            cancelButtonText: 'Cancelar',
+            allowOutsideClick: false,
+            inputValidator: function(value) {
+                if (value !== 'ELIMINAR TODO') {
+                    return 'La frase no coincide exactamente.';
+                }
+            }
+        }).then((result) => {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            ejecutarResetSistema($button, result.value);
+        });
+    });
+}
+
+function ejecutarResetSistema($button, confirmacion) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const textoOriginal = '<i class="fas fa-trash-alt mr-2"></i>Ejecutar reset único';
+
+    $button.prop('disabled', true);
+    $button.html('<i class="fas fa-spinner fa-spin mr-2"></i>Ejecutando...');
+    $('#resultado-reset-sistema').html('');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        dataType: 'json',
+        timeout: 180000,
+        data: {
+            confirmacion: confirmacion,
+            csrf_token: token
+        },
+        success: function(response) {
+            const success = !!(response && response.success);
+
+            if (!success) {
+                const message = response && response.message ? response.message : 'No se pudo ejecutar el reset.';
+                $('#resultado-reset-sistema').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                $button.prop('disabled', !!(response && response.blocked));
+                $button.html(response && response.blocked ? '<i class="fas fa-lock mr-2"></i>Reset bloqueado' : textoOriginal);
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Reset no ejecutado',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            $('#resultado-reset-sistema').html('<div class="alert alert-success" role="alert">' + response.message + '</div>');
+            $button.html('<i class="fas fa-lock mr-2"></i>Reset completado');
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Reset completado',
+                text: response.message,
+                allowOutsideClick: false,
+                confirmButtonColor: '#198754'
+            }).then(() => {
+                window.location.href = response.redirect || '../';
+            });
+        },
+        error: function(jqXHR, textStatus) {
+            let message = 'Error al ejecutar el reset.';
+            if (textStatus === 'timeout') {
+                message = 'El reset tardó demasiado y no se pudo confirmar el resultado.';
+            } else if (jqXHR.responseJSON && jqXHR.responseJSON.message) {
+                message = jqXHR.responseJSON.message;
+            }
+
+            $('#resultado-reset-sistema').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            $button.prop('disabled', false);
+            $button.html(textoOriginal);
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
+}
 
 function initInstalador() {
     console.log('✅ Inicializando instalador');
