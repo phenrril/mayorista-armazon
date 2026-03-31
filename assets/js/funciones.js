@@ -363,12 +363,55 @@ $(function () {
         });
     });
 
-    $('#nom_cliente').autocomplete({
+    const clienteAutocomplete = $('#nom_cliente').autocomplete({
         minLength: 2,
         source: function (request, response) {
-            $.getJSON('ajax.php', { q: request.term }, response);
+            $.getJSON('ajax.php', { q: request.term }, function (items) {
+                const resultados = Array.isArray(items) ? items : [];
+                const termino = String(request.term || '').trim();
+
+                if (termino.length >= 3 && resultados.length === 0) {
+                    response([{
+                        id: 0,
+                        label: 'No hay coincidencias',
+                        value: termino,
+                        noMatch: true
+                    }]);
+                    return;
+                }
+
+                response(resultados);
+            });
+        },
+        appendTo: '#layoutSidenav_content',
+        classes: {
+            'ui-autocomplete': 'cliente-autocomplete-menu'
+        },
+        position: {
+            my: 'left top+8',
+            at: 'left bottom',
+            collision: 'fit'
+        },
+        open: function () {
+            const instance = $(this).autocomplete('instance');
+            if (!instance || !instance.menu || !instance.menu.element) {
+                return;
+            }
+
+            instance.menu.element.outerWidth($(this).outerWidth());
+        },
+        focus: function (event, ui) {
+            if (ui.item && ui.item.noMatch) {
+                event.preventDefault();
+                return false;
+            }
         },
         select: function (event, ui) {
+            if (ui.item && ui.item.noMatch) {
+                event.preventDefault();
+                return false;
+            }
+
             $('#idcliente').val(ui.item.id);
             $('#nom_cliente').val(ui.item.label);
             $('#tel_cliente').val(ui.item.telefono || '');
@@ -379,6 +422,24 @@ $(function () {
             return false;
         }
     });
+
+    clienteAutocomplete.autocomplete('instance')._renderItem = function (ul, item) {
+        if (item.noMatch) {
+            return $('<li>')
+                .addClass('autocomplete-empty-state')
+                .append('<div class="ui-menu-item-wrapper">No hay coincidencias</div>')
+                .appendTo(ul);
+        }
+
+        return $('<li>')
+            .append(
+                $('<div class="ui-menu-item-wrapper">').append(
+                    $('<div class="autocomplete-client-name">').text(item.label),
+                    $('<small class="autocomplete-client-meta">').text(item.telefono || item.direccion || '')
+                )
+            )
+            .appendTo(ul);
+    };
 
     $('#producto').autocomplete({
         minLength: 2,
