@@ -9,6 +9,10 @@ function showCenteredAlert(options) {
     return Swal.fire(Object.assign({
         position: 'center',
         toast: false,
+        target: 'body',
+        backdrop: 'rgba(2, 2, 3, 0.72)',
+        heightAuto: false,
+        allowOutsideClick: true,
         showConfirmButton: false
     }, options));
 }
