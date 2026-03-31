@@ -1,8 +1,15 @@
 <?php 
 session_start();
 include "../conexion.php";
+require_once "includes/mayorista_helpers.php";
 if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
     header("Location: ../");
+    exit();
+}
+if (!($conexion instanceof mysqli)) {
+    include_once "includes/header.php";
+    echo '<div class="alert alert-danger mt-4" role="alert">No se pudo establecer la conexión con la base de datos.</div>';
+    include_once "includes/footer.php";
     exit();
 }
 $id_user = $_SESSION['idUser'];
@@ -27,6 +34,11 @@ $condicionesIva = array(
     'Cliente del Exterior',
     'IVA Liberado - Ley N° 19.640',
 );
+
+$hasClienteCuit = mayorista_column_exists($conexion, 'cliente', 'cuit');
+$hasClienteCondicionIva = mayorista_column_exists($conexion, 'cliente', 'condicion_iva');
+$hasClienteTipoDocumento = mayorista_column_exists($conexion, 'cliente', 'tipo_documento');
+$clienteFiscalSchemaReady = $hasClienteCuit && $hasClienteCondicionIva && $hasClienteTipoDocumento;
 
 include_once "includes/header.php";
 if (!empty($_POST)) {
@@ -55,16 +67,25 @@ if (!empty($_POST)) {
 
         if ($action === 'editar_cliente') {
             $idcliente = (int) ($_POST['idcliente'] ?? 0);
+            $camposUpdate = array(
+                "nombre='$nombre'",
+                "telefono='$telefono'",
+                "direccion='$direccion'",
+                "dni='$dni'",
+            );
+            if ($hasClienteCuit) {
+                $camposUpdate[] = "cuit='$cuit'";
+            }
+            if ($hasClienteCondicionIva) {
+                $camposUpdate[] = "condicion_iva='$condicion_iva'";
+            }
+            if ($hasClienteTipoDocumento) {
+                $camposUpdate[] = "tipo_documento=$tipo_documento";
+            }
             $sql_update = mysqli_query(
                 $conexion,
                 "UPDATE cliente
-                 SET nombre='$nombre',
-                     telefono='$telefono',
-                     direccion='$direccion',
-                     dni='$dni',
-                     cuit='$cuit',
-                     condicion_iva='$condicion_iva',
-                     tipo_documento=$tipo_documento
+                 SET " . implode(",\n                     ", $camposUpdate) . "
                  WHERE idcliente=$idcliente"
             );
             if ($sql_update) {
@@ -83,10 +104,24 @@ if (!empty($_POST)) {
                                     El cliente ya existe
                                 </div>';
             } else {
+                $insertColumns = array('nombre', 'telefono', 'direccion', 'usuario_id', 'dni');
+                $insertValues = array("'$nombre'", "'$telefono'", "'$direccion'", "'$usuario_id'", "'$dni'");
+                if ($hasClienteCuit) {
+                    $insertColumns[] = 'cuit';
+                    $insertValues[] = "'$cuit'";
+                }
+                if ($hasClienteCondicionIva) {
+                    $insertColumns[] = 'condicion_iva';
+                    $insertValues[] = "'$condicion_iva'";
+                }
+                if ($hasClienteTipoDocumento) {
+                    $insertColumns[] = 'tipo_documento';
+                    $insertValues[] = (string) $tipo_documento;
+                }
                 $query_insert = mysqli_query(
                     $conexion,
-                    "INSERT INTO cliente(nombre,telefono,direccion,usuario_id,dni,cuit,condicion_iva,tipo_documento)
-                     VALUES ('$nombre', '$telefono', '$direccion', '$usuario_id', '$dni', '$cuit', '$condicion_iva', $tipo_documento)"
+                    "INSERT INTO cliente(" . implode(',', $insertColumns) . ")
+                     VALUES (" . implode(', ', $insertValues) . ")"
                 );
                 if ($query_insert) {
                     $alert = '<div class="alert alert-success" role="alert">
@@ -108,18 +143,32 @@ if (!empty($_POST)) {
         <h2><i class="fas fa-users mr-2"></i> Gestión de Clientes</h2>
         <p class="mb-0 mt-2">Administrá clientes con sus datos fiscales y acceso a cuenta corriente.</p>
         </div>
-        <div class="badge-soft mt-3 mt-md-0">
-            <i class="fas fa-address-book"></i>
-            Padron comercial
+        <div class="d-flex align-items-center flex-wrap mt-3 mt-md-0">
+            <button class="btn btn-primary-modern btn-modern mr-2 mb-2 mb-md-0" type="button" data-toggle="modal" data-target="#nuevo_cliente">
+                <i class="fas fa-plus mr-2"></i> Nuevo cliente
+            </button>
+            <div class="badge-soft">
+                <i class="fas fa-address-book"></i>
+                Padron comercial
+            </div>
         </div>
     </div>
 
+    <?php if (!$clienteFiscalSchemaReady) { ?>
+        <div class="alert alert-warning mb-4" role="alert">
+            Los campos fiscales avanzados del cliente todavía no están disponibles. Si los necesitás, aplicá `sql/setup_facturacion_electronica.sql`.
+        </div>
+    <?php } ?>
+
     <?php
-    include "../conexion.php";
     $query_count = mysqli_query($conexion, "SELECT COUNT(*) as total FROM cliente WHERE estado = 1");
     $total_clientes = mysqli_fetch_assoc($query_count);
-    $query_fiscales = mysqli_query($conexion, "SELECT COUNT(*) as total FROM cliente WHERE estado = 1 AND IFNULL(cuit, '') <> ''");
-    $total_fiscales = mysqli_fetch_assoc($query_fiscales);
+    if ($hasClienteCuit) {
+        $query_fiscales = mysqli_query($conexion, "SELECT COUNT(*) as total FROM cliente WHERE estado = 1 AND IFNULL(cuit, '') <> ''");
+        $total_fiscales = mysqli_fetch_assoc($query_fiscales);
+    } else {
+        $total_fiscales = array('total' => 0);
+    }
     ?>
 
     <div class="row mb-4">
@@ -137,9 +186,7 @@ if (!empty($_POST)) {
         </div>
         <div class="col-md-4 mb-3">
             <div class="stat-box d-flex align-items-center justify-content-center">
-                <button class="btn btn-primary-modern btn-modern" type="button" data-toggle="modal" data-target="#nuevo_cliente">
-                    <i class="fas fa-plus mr-2"></i> Nuevo cliente
-                </button>
+                <span class="text-muted text-center">Alta rápida disponible desde el encabezado.</span>
             </div>
         </div>
     </div>
@@ -168,9 +215,21 @@ if (!empty($_POST)) {
                     </thead>
                     <tbody>
                         <?php
-                        include "../conexion.php";
-
-                        $query = mysqli_query($conexion, "SELECT * FROM cliente ORDER BY idcliente DESC");
+                        $query = mysqli_query(
+                            $conexion,
+                            "SELECT
+                                idcliente,
+                                nombre,
+                                telefono,
+                                direccion,
+                                estado,
+                                dni,
+                                " . ($hasClienteCuit ? "cuit" : "'' AS cuit") . ",
+                                " . ($hasClienteCondicionIva ? "condicion_iva" : "'Consumidor Final' AS condicion_iva") . ",
+                                " . ($hasClienteTipoDocumento ? "tipo_documento" : "96 AS tipo_documento") . "
+                             FROM cliente
+                             ORDER BY idcliente DESC"
+                        );
                         $result = mysqli_num_rows($query);
                         if ($result > 0) {
                             while ($data = mysqli_fetch_assoc($query)) {
