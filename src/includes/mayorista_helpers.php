@@ -49,6 +49,89 @@ function mayorista_es_admin($idUsuario)
     return (int) $idUsuario === 1;
 }
 
+function mayorista_generar_token_reset_sistema()
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return '';
+    }
+
+    if (empty($_SESSION['reset_sistema_token']) || !is_string($_SESSION['reset_sistema_token'])) {
+        $_SESSION['reset_sistema_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['reset_sistema_token'];
+}
+
+function mayorista_validar_token_reset_sistema($token)
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['reset_sistema_token'])) {
+        return false;
+    }
+
+    return hash_equals($_SESSION['reset_sistema_token'], (string) $token);
+}
+
+function mayorista_invalidar_token_reset_sistema()
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['reset_sistema_token']);
+    }
+}
+
+function mayorista_asegurar_tabla_flags($conexion)
+{
+    if (mayorista_table_exists($conexion, 'sistema_flags')) {
+        return true;
+    }
+
+    $sql = "CREATE TABLE IF NOT EXISTS sistema_flags (
+        clave VARCHAR(100) NOT NULL,
+        valor VARCHAR(255) NOT NULL DEFAULT '',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (clave)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
+
+    return mysqli_query($conexion, $sql) !== false;
+}
+
+function mayorista_reset_sistema_fue_ejecutado($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $query = mysqli_query(
+        $conexion,
+        "SELECT valor
+         FROM sistema_flags
+         WHERE clave = 'reset_sistema_ejecutado'
+         LIMIT 1"
+    );
+
+    if (!$query || mysqli_num_rows($query) === 0) {
+        return false;
+    }
+
+    $row = mysqli_fetch_assoc($query);
+    return isset($row['valor']) && $row['valor'] === '1';
+}
+
+function mayorista_marcar_reset_sistema_ejecutado($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $sql = "INSERT INTO sistema_flags (clave, valor)
+        VALUES ('reset_sistema_ejecutado', '1')
+        ON DUPLICATE KEY UPDATE
+            valor = VALUES(valor),
+            updated_at = CURRENT_TIMESTAMP";
+
+    return mysqli_query($conexion, $sql) !== false;
+}
+
 function mayorista_requiere_permiso($conexion, $idUsuario, $permisos)
 {
     if (!mayorista_tiene_permiso($conexion, $idUsuario, $permisos)) {
