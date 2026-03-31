@@ -439,7 +439,8 @@ function initInstalador() {
                 // Si fue exitoso, mostrar SweetAlert
                 if (response.success) {
                     Swal.fire({
-                        position: 'top-end',
+                        position: 'center',
+                        toast: false,
                         icon: 'success',
                         title: 'Productos Ocultados',
                         text: response.message,

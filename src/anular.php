@@ -1,6 +1,9 @@
 <?php 
 require "../conexion.php";
 session_start();
+if (!($conexion instanceof mysqli)) {
+    exit;
+}
 
 $id_venta = $_POST['idanular'];
 $consultaDetalle = mysqli_query($conexion, "SELECT * FROM detalle_venta WHERE id_venta = $id_venta");
@@ -26,7 +29,8 @@ $eliminarPost = mysqli_query($conexion, "DELETE FROM postpagos WHERE id_venta = 
 $eliminar = mysqli_query($conexion, "DELETE FROM ventas WHERE id = $id_venta");
 
 echo "<script>Swal.fire({
-    position: 'top-mid',
+    position: 'center',
+    toast: false,
     icon: 'success',
     title: 'Venta Eliminada',
     showConfirmButton: false,
@@ -36,7 +40,8 @@ echo "<script>Swal.fire({
 else 
 {
     echo "<script>Swal.fire({
-        position: 'top-mid',
+        position: 'center',
+        toast: false,
         icon: 'error',
         title: 'Error al eliminar venta, verifique ID',
         showConfirmButton: false,
