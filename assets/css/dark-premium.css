@@ -707,6 +707,50 @@ textarea.form-control {
   background: rgba(255, 255, 255, 0.045) !important;
 }
 
+.cliente-autocomplete-menu.ui-autocomplete {
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(10, 10, 13, 0.98);
+  box-shadow: var(--shadow-elevated);
+  backdrop-filter: blur(16px);
+  z-index: 2000;
+}
+
+.cliente-autocomplete-menu .ui-menu-item-wrapper {
+  padding: 0.75rem 0.9rem;
+  border: 0;
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.cliente-autocomplete-menu .ui-state-active,
+.cliente-autocomplete-menu .ui-widget-content .ui-state-active,
+.cliente-autocomplete-menu .ui-menu-item-wrapper.ui-state-active {
+  margin: 0;
+  border: 0;
+  color: var(--text-primary);
+  background: rgba(94, 106, 210, 0.22);
+}
+
+.autocomplete-client-name {
+  font-weight: 600;
+}
+
+.autocomplete-client-meta {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--text-secondary);
+}
+
+.autocomplete-empty-state .ui-menu-item-wrapper {
+  color: var(--text-secondary);
+  font-style: italic;
+  cursor: default;
+}
+
 .total-display {
   padding: 1.75rem;
   text-align: center;
