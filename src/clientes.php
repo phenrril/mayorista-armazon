@@ -38,7 +38,12 @@ $condicionesIva = array(
 $hasClienteCuit = mayorista_column_exists($conexion, 'cliente', 'cuit');
 $hasClienteCondicionIva = mayorista_column_exists($conexion, 'cliente', 'condicion_iva');
 $hasClienteTipoDocumento = mayorista_column_exists($conexion, 'cliente', 'tipo_documento');
+$hasClienteOptica = mayorista_column_exists($conexion, 'cliente', 'optica');
+$hasClienteLocalidad = mayorista_column_exists($conexion, 'cliente', 'localidad');
+$hasClienteCodigoPostal = mayorista_column_exists($conexion, 'cliente', 'codigo_postal');
+$hasClienteProvincia = mayorista_column_exists($conexion, 'cliente', 'provincia');
 $clienteFiscalSchemaReady = $hasClienteCuit && $hasClienteCondicionIva && $hasClienteTipoDocumento;
+$clienteRemitoSchemaReady = $hasClienteOptica && $hasClienteLocalidad && $hasClienteCodigoPostal && $hasClienteProvincia;
 
 include_once "includes/header.php";
 if (!empty($_POST)) {
@@ -55,6 +60,10 @@ if (!empty($_POST)) {
         $usuario_id = (int) $_SESSION['idUser'];
         $dni = mysqli_real_escape_string($conexion, trim($_POST['dni'] ?? ''));
         $cuit = mysqli_real_escape_string($conexion, trim($_POST['cuit'] ?? ''));
+        $optica = mysqli_real_escape_string($conexion, trim($_POST['optica'] ?? ''));
+        $localidad = mysqli_real_escape_string($conexion, trim($_POST['localidad'] ?? ''));
+        $codigo_postal = mysqli_real_escape_string($conexion, trim($_POST['codigo_postal'] ?? ''));
+        $provincia = mysqli_real_escape_string($conexion, trim($_POST['provincia'] ?? ''));
         $condicion_iva = trim($_POST['condicion_iva'] ?? 'Consumidor Final');
         if (!in_array($condicion_iva, $condicionesIva, true)) {
             $condicion_iva = 'Consumidor Final';
@@ -65,7 +74,19 @@ if (!empty($_POST)) {
             $tipo_documento = 96;
         }
 
-        if ($action === 'editar_cliente') {
+        if ($clienteRemitoSchemaReady && ($optica === '' || $localidad === '' || $codigo_postal === '' || $provincia === '')) {
+            $alert = '<div class="alert alert-danger" role="alert">
+                                    Complete óptica, localidad, código postal y provincia
+                                </div>';
+        } elseif ($clienteFiscalSchemaReady && $tipo_documento === 80 && $cuit === '') {
+            $alert = '<div class="alert alert-danger" role="alert">
+                                    Para tipo CUIT el campo CUIT es obligatorio
+                                </div>';
+        } elseif ($clienteFiscalSchemaReady && $tipo_documento === 96 && $dni === '') {
+            $alert = '<div class="alert alert-danger" role="alert">
+                                    Para tipo DNI el campo DNI es obligatorio
+                                </div>';
+        } elseif ($action === 'editar_cliente') {
             $idcliente = (int) ($_POST['idcliente'] ?? 0);
             $camposUpdate = array(
                 "nombre='$nombre'",
@@ -73,6 +94,18 @@ if (!empty($_POST)) {
                 "direccion='$direccion'",
                 "dni='$dni'",
             );
+            if ($hasClienteOptica) {
+                $camposUpdate[] = "optica='$optica'";
+            }
+            if ($hasClienteLocalidad) {
+                $camposUpdate[] = "localidad='$localidad'";
+            }
+            if ($hasClienteCodigoPostal) {
+                $camposUpdate[] = "codigo_postal='$codigo_postal'";
+            }
+            if ($hasClienteProvincia) {
+                $camposUpdate[] = "provincia='$provincia'";
+            }
             if ($hasClienteCuit) {
                 $camposUpdate[] = "cuit='$cuit'";
             }
@@ -106,6 +139,22 @@ if (!empty($_POST)) {
             } else {
                 $insertColumns = array('nombre', 'telefono', 'direccion', 'usuario_id', 'dni');
                 $insertValues = array("'$nombre'", "'$telefono'", "'$direccion'", "'$usuario_id'", "'$dni'");
+                if ($hasClienteOptica) {
+                    $insertColumns[] = 'optica';
+                    $insertValues[] = "'$optica'";
+                }
+                if ($hasClienteLocalidad) {
+                    $insertColumns[] = 'localidad';
+                    $insertValues[] = "'$localidad'";
+                }
+                if ($hasClienteCodigoPostal) {
+                    $insertColumns[] = 'codigo_postal';
+                    $insertValues[] = "'$codigo_postal'";
+                }
+                if ($hasClienteProvincia) {
+                    $insertColumns[] = 'provincia';
+                    $insertValues[] = "'$provincia'";
+                }
                 if ($hasClienteCuit) {
                     $insertColumns[] = 'cuit';
                     $insertValues[] = "'$cuit'";
@@ -204,8 +253,12 @@ if (!empty($_POST)) {
                         <tr>
                             <th>#</th>
                             <th>Nombre *</th>
+                            <?php if ($hasClienteOptica) { ?><th>Óptica</th><?php } ?>
                             <th>Teléfono *</th>
-                            <th>Dirección *</th>      
+                            <th>Dirección *</th>
+                            <?php if ($hasClienteLocalidad) { ?><th>Localidad</th><?php } ?>
+                            <?php if ($hasClienteProvincia) { ?><th>Provincia</th><?php } ?>
+                            <?php if ($hasClienteCodigoPostal) { ?><th>CP</th><?php } ?>
                             <th>DNI</th>
                             <th>CUIT</th>
                             <th>Condición IVA</th>
@@ -224,6 +277,10 @@ if (!empty($_POST)) {
                                 direccion,
                                 estado,
                                 dni,
+                                " . ($hasClienteOptica ? "optica" : "'' AS optica") . ",
+                                " . ($hasClienteLocalidad ? "localidad" : "'' AS localidad") . ",
+                                " . ($hasClienteProvincia ? "provincia" : "'' AS provincia") . ",
+                                " . ($hasClienteCodigoPostal ? "codigo_postal" : "'' AS codigo_postal") . ",
                                 " . ($hasClienteCuit ? "cuit" : "'' AS cuit") . ",
                                 " . ($hasClienteCondicionIva ? "condicion_iva" : "'Consumidor Final' AS condicion_iva") . ",
                                 " . ($hasClienteTipoDocumento ? "tipo_documento" : "96 AS tipo_documento") . "
@@ -242,8 +299,12 @@ if (!empty($_POST)) {
                                 <tr>
                                     <td><?php echo $data['idcliente']; ?></td>
                                     <td><i class="fas fa-user-circle text-primary mr-2"></i><?php echo htmlspecialchars($data['nombre']); ?></td>
+                                    <?php if ($hasClienteOptica) { ?><td><?php echo htmlspecialchars($data['optica'] ?: '-'); ?></td><?php } ?>
                                     <td><i class="fas fa-phone text-success mr-2"></i><?php echo htmlspecialchars($data['telefono']); ?></td>
-                                    <td><i class="fas fa-map-marker-alt text-info mr-2"></i><?php echo htmlspecialchars($data['direccion']); ?></td>             
+                                    <td><i class="fas fa-map-marker-alt text-info mr-2"></i><?php echo htmlspecialchars($data['direccion']); ?></td>
+                                    <?php if ($hasClienteLocalidad) { ?><td><?php echo htmlspecialchars($data['localidad'] ?: '-'); ?></td><?php } ?>
+                                    <?php if ($hasClienteProvincia) { ?><td><?php echo htmlspecialchars($data['provincia'] ?: '-'); ?></td><?php } ?>
+                                    <?php if ($hasClienteCodigoPostal) { ?><td><?php echo htmlspecialchars($data['codigo_postal'] ?: '-'); ?></td><?php } ?>
                                     <td><?php echo htmlspecialchars($data['dni'] ?: '-'); ?></td>
                                     <td><?php echo htmlspecialchars($data['cuit'] ?: '-'); ?></td>
                                     <td><?php echo htmlspecialchars($data['condicion_iva'] ?: 'Consumidor Final'); ?></td>
@@ -262,8 +323,12 @@ if (!empty($_POST)) {
                                                     data-target="#editar_cliente_modal"
                                                     data-idcliente="<?php echo (int) $data['idcliente']; ?>"
                                                     data-nombre="<?php echo htmlspecialchars($data['nombre'], ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-optica="<?php echo htmlspecialchars($data['optica'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                                     data-telefono="<?php echo htmlspecialchars($data['telefono'], ENT_QUOTES, 'UTF-8'); ?>"
                                                     data-direccion="<?php echo htmlspecialchars($data['direccion'], ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-localidad="<?php echo htmlspecialchars($data['localidad'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-provincia="<?php echo htmlspecialchars($data['provincia'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                                    data-codigopostal="<?php echo htmlspecialchars($data['codigo_postal'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                                     data-dni="<?php echo htmlspecialchars($data['dni'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                                     data-cuit="<?php echo htmlspecialchars($data['cuit'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                                     data-condicioniva="<?php echo htmlspecialchars($data['condicion_iva'] ?? 'Consumidor Final', ENT_QUOTES, 'UTF-8'); ?>"
@@ -291,7 +356,7 @@ if (!empty($_POST)) {
                         <?php }
                         } else { ?>
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="13" class="text-center py-5">
                                     <i class="fas fa-users fa-3x text-muted mb-3 d-block"></i>
                                     <p class="text-muted">No hay clientes registrados</p>
                                 </td>
@@ -320,6 +385,14 @@ if (!empty($_POST)) {
                 <form action="" method="post" autocomplete="off">
                     <input type="hidden" name="action" value="crear_cliente">
                     <div class="row">
+                        <?php if ($hasClienteOptica) { ?>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="optica"><i class="fas fa-store mr-2 text-secondary"></i>Óptica *</label>
+                                <input type="text" placeholder="Ingrese nombre de la óptica" name="optica" id="optica" class="form-control" required>
+                            </div>
+                        </div>
+                        <?php } ?>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="nombre"><i class="fas fa-user mr-2 text-primary"></i>Nombre *</label>
@@ -340,7 +413,33 @@ if (!empty($_POST)) {
                                 <input type="text" placeholder="Ingrese dirección" name="direccion" id="direccion" class="form-control" required>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <?php if ($hasClienteLocalidad) { ?>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="localidad"><i class="fas fa-city mr-2 text-info"></i>Localidad *</label>
+                                <input type="text" placeholder="Ingrese localidad" name="localidad" id="localidad" class="form-control" required>
+                            </div>
+                        </div>
+                        <?php } ?>
+                        <?php if ($hasClienteProvincia) { ?>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="provincia"><i class="fas fa-map mr-2 text-info"></i>Provincia *</label>
+                                <input type="text" placeholder="Ingrese provincia" name="provincia" id="provincia" class="form-control" required>
+                            </div>
+                        </div>
+                        <?php } ?>
+                    </div>
+                    <div class="row">
+                        <?php if ($hasClienteCodigoPostal) { ?>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="codigo_postal"><i class="fas fa-mail-bulk mr-2 text-dark"></i>Código postal *</label>
+                                <input type="text" placeholder="Ingrese código postal" name="codigo_postal" id="codigo_postal" class="form-control" required>
+                            </div>
+                        </div>
+                        <?php } ?>
+                        <div class="col-md-5">
                             <div class="form-group">
                                 <label for="dni"><i class="fas fa-id-card mr-2 text-warning"></i>DNI</label>
                                 <input type="text" placeholder="Ingrese DNI" name="dni" id="dni" class="form-control">
@@ -406,6 +505,14 @@ if (!empty($_POST)) {
                     <input type="hidden" name="action" value="editar_cliente">
                     <input type="hidden" name="idcliente" id="edit_idcliente">
                     <div class="row">
+                        <?php if ($hasClienteOptica) { ?>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="edit_optica"><i class="fas fa-store mr-2 text-secondary"></i>Óptica *</label>
+                                <input type="text" placeholder="Ingrese nombre de la óptica" name="optica" id="edit_optica" class="form-control" required>
+                            </div>
+                        </div>
+                        <?php } ?>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="edit_nombre"><i class="fas fa-user mr-2 text-primary"></i>Nombre *</label>
@@ -426,7 +533,33 @@ if (!empty($_POST)) {
                                 <input type="text" placeholder="Ingrese dirección" name="direccion" id="edit_direccion" class="form-control" required>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <?php if ($hasClienteLocalidad) { ?>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="edit_localidad"><i class="fas fa-city mr-2 text-info"></i>Localidad *</label>
+                                <input type="text" placeholder="Ingrese localidad" name="localidad" id="edit_localidad" class="form-control" required>
+                            </div>
+                        </div>
+                        <?php } ?>
+                        <?php if ($hasClienteProvincia) { ?>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="edit_provincia"><i class="fas fa-map mr-2 text-info"></i>Provincia *</label>
+                                <input type="text" placeholder="Ingrese provincia" name="provincia" id="edit_provincia" class="form-control" required>
+                            </div>
+                        </div>
+                        <?php } ?>
+                    </div>
+                    <div class="row">
+                        <?php if ($hasClienteCodigoPostal) { ?>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="edit_codigo_postal"><i class="fas fa-mail-bulk mr-2 text-dark"></i>Código postal *</label>
+                                <input type="text" placeholder="Ingrese código postal" name="codigo_postal" id="edit_codigo_postal" class="form-control" required>
+                            </div>
+                        </div>
+                        <?php } ?>
+                        <div class="col-md-5">
                             <div class="form-group">
                                 <label for="edit_dni"><i class="fas fa-id-card mr-2 text-warning"></i>DNI</label>
                                 <input type="text" placeholder="Ingrese DNI" name="dni" id="edit_dni" class="form-control">
@@ -486,8 +619,12 @@ $(function () {
         const button = $(this);
         $('#edit_idcliente').val(button.data('idcliente'));
         $('#edit_nombre').val(button.data('nombre'));
+        $('#edit_optica').val(button.data('optica'));
         $('#edit_telefono').val(button.data('telefono'));
         $('#edit_direccion').val(button.data('direccion'));
+        $('#edit_localidad').val(button.data('localidad'));
+        $('#edit_provincia').val(button.data('provincia'));
+        $('#edit_codigo_postal').val(button.data('codigopostal'));
         $('#edit_dni').val(button.data('dni'));
         $('#edit_cuit').val(button.data('cuit'));
         $('#edit_condicion_iva').val(button.data('condicioniva'));

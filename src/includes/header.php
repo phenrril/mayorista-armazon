@@ -36,7 +36,11 @@
 
 <body class="sb-nav-fixed app-shell">
     <nav class="sb-topnav navbar navbar-expand navbar-dark bg-dark">
-        <a class="navbar-brand" href="index.php">Armazón</a>
+        <a class="navbar-brand" href="index.php" aria-label="Argen Optik">
+            <span class="navbar-brand-frame">
+                <img src="../assets/img/logo-login.png" alt="Argen Optik" class="navbar-brand-logo">
+            </span>
+        </a>
         <button class="btn btn-link btn-sm order-1 order-lg-0" id="sidebarToggle" href="#"><i class="fas fa-bars"></i></button>
 
         <!-- Navbar-->

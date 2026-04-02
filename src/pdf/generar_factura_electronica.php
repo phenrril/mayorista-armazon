@@ -12,6 +12,7 @@ if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
 
 require_once '../../conexion.php';
 require_once 'fpdf/fpdf.php';
+require_once 'pdf_footer_helper.php';
 require_once '../classes/FacturacionElectronica.php';
 
 // Verificar parámetros
@@ -66,10 +67,26 @@ $query_config_fact = mysqli_query($conexion, "SELECT * FROM facturacion_config L
 $config_facturacion = mysqli_fetch_assoc($query_config_fact);
 
 // Crear PDF
-$pdf = new FPDF('P', 'mm', 'A4');
-$pdf->AddPage();
+$footerAssets = mayorista_pdf_footer_assets();
+
+$pdf = new MayoristaBrandedPdf('P', 'mm', 'A4');
+$pdf->setBrandFooter(
+    $footerAssets['brand_logos'],
+    $footerAssets['whatsapp_icon'],
+    $footerAssets['whatsapp_text'],
+    $footerAssets['instagram_icon'],
+    $footerAssets['instagram_text'],
+    array(
+        'Este documento es una representacion impresa de la Factura Electronica',
+        'La validez de la factura puede verificarse en www.afip.gob.ar/fe/qr/',
+        '*** DOCUMENTO NO VALIDO COMO FACTURA ***',
+    )
+);
 $pdf->SetMargins(10, 10, 10);
-$pdf->SetAutoPageBreak(true, 15);
+$pdf->SetAutoPageBreak(true, $pdf->getFooterHeight() + 6);
+$pdf->AddPage();
+
+$brandLogoPath = realpath(__DIR__ . '/../../assets/logo-pdf-clean-white.png');
 
 // Formatear números
 $numero_comprobante = sprintf("%04d-%08d", $factura['punto_venta'], $factura['numero_comprobante']);
@@ -89,14 +106,16 @@ switch ($factura['tipo_comprobante']) {
 // ENCABEZADO - Datos del Emisor y Letra
 // =====================================================
 
-// Logo
-if (file_exists("../../assets/img/logo.png")) {
+// Logo premium
+if ($brandLogoPath && file_exists($brandLogoPath)) {
+    $pdf->Image($brandLogoPath, 15, 13, 52, 0, 'PNG');
+} elseif (file_exists("../../assets/img/logo.png")) {
     $pdf->Image("../../assets/img/logo.png", 15, 15, 30, 30, 'PNG');
 }
 
 // Datos del emisor (izquierda)
 $pdf->SetFont('Arial', 'B', 12);
-$pdf->SetXY(15, 48);
+$pdf->SetXY(15, 50);
 $pdf->Cell(70, 5, utf8_decode($config_facturacion['razon_social'] ?? $config_negocio['nombre']), 0, 1, 'L');
 
 $pdf->SetFont('Arial', '', 9);
@@ -369,17 +388,6 @@ try {
     $pdf->SetXY(15, $y_qr);
     $pdf->MultiCell(180, 3, utf8_decode('Verificá esta factura en: ' . $qr_url_afip), 0, 'L');
 }
-
-// =====================================================
-// PIE DE PÁGINA
-// =====================================================
-
-$pdf->SetY(-25);
-$pdf->SetFont('Arial', 'I', 7);
-$pdf->Cell(190, 3, utf8_decode('Este documento es una representación impresa de la Factura Electrónica'), 0, 1, 'C');
-$pdf->Cell(190, 3, utf8_decode('La validez de la factura puede verificarse en www.afip.gob.ar/fe/qr/'), 0, 1, 'C');
-$pdf->SetFont('Arial', 'B', 7);
-$pdf->Cell(190, 3, utf8_decode('*** DOCUMENTO NO VÁLIDO COMO FACTURA ***'), 0, 1, 'C');
 
 // =====================================================
 // OUTPUT

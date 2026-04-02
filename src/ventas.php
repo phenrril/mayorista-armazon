@@ -11,6 +11,27 @@ if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
 $id_user = (int) $_SESSION['idUser'];
 mayorista_requiere_permiso($conexion, $id_user, array('nueva_venta'));
 
+$condicionesIva = array(
+    'Consumidor Final',
+    'IVA Responsable Inscripto',
+    'Responsable Monotributo',
+    'IVA Sujeto Exento',
+    'IVA Responsable no Inscripto',
+    'IVA no Responsable',
+    'Sujeto no Categorizado',
+    'Proveedor del Exterior',
+    'Cliente del Exterior',
+    'IVA Liberado - Ley N° 19.640',
+);
+$hasClienteCuit = mayorista_column_exists($conexion, 'cliente', 'cuit');
+$hasClienteCondicionIva = mayorista_column_exists($conexion, 'cliente', 'condicion_iva');
+$hasClienteTipoDocumento = mayorista_column_exists($conexion, 'cliente', 'tipo_documento');
+$hasClienteOptica = mayorista_column_exists($conexion, 'cliente', 'optica');
+$hasClienteLocalidad = mayorista_column_exists($conexion, 'cliente', 'localidad');
+$hasClienteCodigoPostal = mayorista_column_exists($conexion, 'cliente', 'codigo_postal');
+$hasClienteProvincia = mayorista_column_exists($conexion, 'cliente', 'provincia');
+$hasModoDespacho = mayorista_column_exists($conexion, 'ventas', 'modo_despacho');
+$modosDespacho = mayorista_modos_despacho();
 $schemaReady = mayorista_column_exists($conexion, 'producto', 'precio_mayorista')
     && mayorista_column_exists($conexion, 'ventas', 'tipo_venta')
     && mayorista_table_exists($conexion, 'cuenta_corriente')
@@ -33,6 +54,11 @@ include_once "includes/header.php";
     <?php if (!$schemaReady) { ?>
         <div class="alert alert-warning">
             Falta aplicar la migración `sql/2026_mayorista_armazones.sql`. La pantalla funciona en modo limitado hasta que el esquema quede actualizado.
+        </div>
+    <?php } ?>
+    <?php if (!mayorista_schema_remito_productos_listo($conexion)) { ?>
+        <div class="alert alert-warning">
+            Ejecutá la migración nueva desde configuración para habilitar clientes completos, modo de despacho y el remito actualizado.
         </div>
     <?php } ?>
 
@@ -74,6 +100,23 @@ include_once "includes/header.php";
                     </div>
                 </div>
             </div>
+
+            <?php if ($hasModoDespacho) { ?>
+            <div class="row">
+                <div class="col-lg-4">
+                    <div class="form-group mb-0">
+                        <label>Modo de despacho</label>
+                        <select id="modo_despacho" class="form-control custom-select-modern">
+                            <?php foreach ($modosDespacho as $modoDespacho) { ?>
+                                <option value="<?php echo htmlspecialchars($modoDespacho); ?>" <?php echo $modoDespacho === 'A convenir' ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($modoDespacho); ?>
+                                </option>
+                            <?php } ?>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <?php } ?>
 
             <div class="row">
                 <div class="col-md-4 mb-3">
@@ -196,7 +239,7 @@ include_once "includes/header.php";
 </div>
 
 <div id="nuevo_cliente_venta" class="modal fade" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header modal-header-accent">
                 <h5 class="modal-title"><i class="fas fa-user-plus mr-2"></i> Nuevo cliente</h5>
@@ -206,6 +249,12 @@ include_once "includes/header.php";
             </div>
             <div class="modal-body">
                 <form id="form_nuevo_cliente">
+                    <?php if ($hasClienteOptica) { ?>
+                    <div class="form-group">
+                        <label>Óptica</label>
+                        <input type="text" class="form-control" id="optica_cliente" required>
+                    </div>
+                    <?php } ?>
                     <div class="form-group">
                         <label>Nombre</label>
                         <input type="text" class="form-control" id="nombre_cliente" required>
@@ -218,10 +267,53 @@ include_once "includes/header.php";
                         <label>Dirección</label>
                         <input type="text" class="form-control" id="direccion_cliente" required>
                     </div>
+                    <?php if ($hasClienteLocalidad) { ?>
                     <div class="form-group">
-                        <label>DNI / CUIT</label>
-                        <input type="text" class="form-control" id="dni_cliente">
+                        <label>Localidad</label>
+                        <input type="text" class="form-control" id="localidad_cliente" required>
                     </div>
+                    <?php } ?>
+                    <?php if ($hasClienteProvincia) { ?>
+                    <div class="form-group">
+                        <label>Provincia</label>
+                        <input type="text" class="form-control" id="provincia_cliente" required>
+                    </div>
+                    <?php } ?>
+                    <?php if ($hasClienteCodigoPostal) { ?>
+                    <div class="form-group">
+                        <label>Código postal</label>
+                        <input type="text" class="form-control" id="codigo_postal_cliente" required>
+                    </div>
+                    <?php } ?>
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>Tipo documento</label>
+                            <select class="form-control" id="tipo_documento_cliente">
+                                <option value="96">DNI</option>
+                                <option value="80">CUIT</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>DNI</label>
+                            <input type="text" class="form-control" id="dni_cliente">
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>CUIT</label>
+                            <input type="text" class="form-control" id="cuit_cliente">
+                        </div>
+                    </div>
+                    <?php if ($hasClienteCondicionIva) { ?>
+                    <div class="form-group">
+                        <label>Condición IVA</label>
+                        <select class="form-control" id="condicion_iva_cliente">
+                            <?php foreach ($condicionesIva as $condicionIva) { ?>
+                                <option value="<?php echo htmlspecialchars($condicionIva); ?>" <?php echo $condicionIva === 'Consumidor Final' ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($condicionIva); ?>
+                                </option>
+                            <?php } ?>
+                        </select>
+                    </div>
+                    <?php } ?>
                     <div class="text-right">
                         <button type="button" class="btn btn-success-modern btn-modern" id="btn_guardar_cliente" onclick="guardarNuevoCliente()">
                             Guardar cliente

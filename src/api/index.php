@@ -181,7 +181,7 @@ if ($segments[0] === 'productos' && $method === 'GET') {
             'precio_minorista' => (float) $row['precio'],
             'precio_mayorista' => isset($row['precio_mayorista']) ? (float) $row['precio_mayorista'] : (float) $row['precio'],
             'stock' => (int) $row['existencia'],
-            'tipo' => $row['tipo'] ?? 'armazon',
+            'tipo' => $row['tipo'] ?? 'receta',
         );
     }
 

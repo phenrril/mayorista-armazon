@@ -13,23 +13,43 @@ mayorista_requiere_permiso($conexion, $id_user, array('productos'));
 
 $hasMayorista = mayorista_column_exists($conexion, 'producto', 'precio_mayorista');
 $hasTipo = mayorista_column_exists($conexion, 'producto', 'tipo');
+$hasModelo = mayorista_column_exists($conexion, 'producto', 'modelo');
+$hasColor = mayorista_column_exists($conexion, 'producto', 'color');
+$hasTipoMaterial = mayorista_column_exists($conexion, 'producto', 'tipo_material');
 $hasPrecioBruto = mayorista_column_exists($conexion, 'producto', 'precio_bruto');
 $hasCosto = mayorista_column_exists($conexion, 'producto', 'costo');
+$tiposProducto = mayorista_tipos_producto();
+$tiposMaterial = mayorista_tipos_material_producto();
 $alert = '';
 
 if (!empty($_POST['action']) && $_POST['action'] === 'crear_producto') {
     $codigo = mysqli_real_escape_string($conexion, trim($_POST['codigo'] ?? ''));
     $descripcion = mysqli_real_escape_string($conexion, trim($_POST['producto'] ?? ''));
     $marca = mysqli_real_escape_string($conexion, trim($_POST['marca'] ?? ''));
+    $modelo = mysqli_real_escape_string($conexion, trim($_POST['modelo'] ?? ''));
+    $color = mysqli_real_escape_string($conexion, trim($_POST['color'] ?? ''));
+    $tipoMaterial = trim($_POST['tipo_material'] ?? '');
     $precio = (float) ($_POST['precio'] ?? 0);
     $precioMayorista = (float) ($_POST['precio_mayorista'] ?? $precio);
     $cantidad = (int) ($_POST['cantidad'] ?? 0);
-    $tipo = ($_POST['tipo'] ?? 'armazon') === 'accesorio' ? 'accesorio' : 'armazon';
+    $tipo = trim($_POST['tipo'] ?? 'receta');
     $precioBruto = (float) ($_POST['precio_bruto'] ?? 0);
     $costo = isset($_POST['costo']) ? 1 : 0;
 
-    if ($codigo === '' || $descripcion === '' || $marca === '' || $precio < 0 || $cantidad < 0) {
-        $alert = '<div class="alert alert-warning">Completa codigo, descripcion, marca, precio y stock inicial.</div>';
+    if (!in_array($tipo, $tiposProducto, true)) {
+        $tipo = 'receta';
+    }
+    if (!in_array($tipoMaterial, $tiposMaterial, true)) {
+        $tipoMaterial = '';
+    }
+
+    if (
+        $codigo === '' || $descripcion === '' || $marca === '' || $precio < 0 || $cantidad < 0
+        || ($hasModelo && $modelo === '')
+        || ($hasColor && $color === '')
+        || ($hasTipoMaterial && $tipoMaterial === '')
+    ) {
+        $alert = '<div class="alert alert-warning">Completa codigo, descripcion, marca, modelo, color, material, precio y stock inicial.</div>';
     } else {
         $check = mysqli_query($conexion, "SELECT 1 FROM producto WHERE codigo = '$codigo' LIMIT 1");
         if ($check && mysqli_num_rows($check) > 0) {
@@ -37,6 +57,19 @@ if (!empty($_POST['action']) && $_POST['action'] === 'crear_producto') {
         } else {
             $campos = array('codigo', 'descripcion', 'marca', 'precio', 'existencia', 'usuario_id');
             $valores = array("'$codigo'", "'$descripcion'", "'$marca'", $precio, $cantidad, $id_user);
+
+            if ($hasModelo) {
+                $campos[] = 'modelo';
+                $valores[] = "'$modelo'";
+            }
+            if ($hasColor) {
+                $campos[] = 'color';
+                $valores[] = "'$color'";
+            }
+            if ($hasTipoMaterial) {
+                $campos[] = 'tipo_material';
+                $valores[] = $tipoMaterial === '' ? 'NULL' : "'" . mysqli_real_escape_string($conexion, $tipoMaterial) . "'";
+            }
 
             if ($hasMayorista) {
                 $campos[] = 'precio_mayorista';
@@ -109,9 +142,9 @@ include_once "includes/header.php";
         </div>
     </div>
 
-    <?php if (!$hasMayorista || !$hasTipo) { ?>
+    <?php if (!$hasMayorista || !$hasTipo || !$hasModelo || !$hasColor || !$hasTipoMaterial) { ?>
         <div class="alert alert-warning">
-            Falta aplicar `sql/2026_mayorista_armazones.sql` para habilitar precio mayorista y tipo de producto en toda la interfaz.
+            Falta aplicar `sql/2026_remito_clientes_productos.sql` para habilitar todos los atributos nuevos de producto en la interfaz.
         </div>
     <?php } ?>
 
@@ -151,6 +184,9 @@ include_once "includes/header.php";
                             <th>Codigo</th>
                             <th>Descripcion</th>
                             <th>Marca</th>
+                            <?php if ($hasModelo) { ?><th>Modelo</th><?php } ?>
+                            <?php if ($hasColor) { ?><th>Color</th><?php } ?>
+                            <?php if ($hasTipoMaterial) { ?><th>Material</th><?php } ?>
                             <?php if ($hasTipo) { ?><th>Tipo</th><?php } ?>
                             <th>Minorista</th>
                             <?php if ($hasMayorista) { ?><th>Mayorista</th><?php } ?>
@@ -173,7 +209,10 @@ include_once "includes/header.php";
                                 <td><?php echo htmlspecialchars($data['codigo']); ?></td>
                                 <td><?php echo htmlspecialchars($data['descripcion']); ?></td>
                                 <td><?php echo htmlspecialchars($data['marca']); ?></td>
-                                <?php if ($hasTipo) { ?><td><?php echo ucfirst($data['tipo']); ?></td><?php } ?>
+                                <?php if ($hasModelo) { ?><td><?php echo htmlspecialchars($data['modelo'] ?? '-'); ?></td><?php } ?>
+                                <?php if ($hasColor) { ?><td><?php echo htmlspecialchars($data['color'] ?? '-'); ?></td><?php } ?>
+                                <?php if ($hasTipoMaterial) { ?><td><?php echo htmlspecialchars($data['tipo_material'] ?? '-'); ?></td><?php } ?>
+                                <?php if ($hasTipo) { ?><td><?php echo htmlspecialchars(ucfirst(str_replace('-', ' ', $data['tipo']))); ?></td><?php } ?>
                                 <td><?php echo number_format((float) $data['precio'], 2, ',', '.'); ?></td>
                                 <?php if ($hasMayorista) { ?><td><?php echo number_format((float) $data['precio_mayorista'], 2, ',', '.'); ?></td><?php } ?>
                                 <?php if ($hasPrecioBruto) { ?><td><?php echo number_format((float) $data['precio_bruto'], 2, ',', '.'); ?></td><?php } ?>
@@ -237,6 +276,35 @@ include_once "includes/header.php";
                                 <input type="text" name="marca" class="form-control" required>
                             </div>
                         </div>
+                        <?php if ($hasModelo) { ?>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Modelo</label>
+                                <input type="text" name="modelo" class="form-control" required>
+                            </div>
+                        </div>
+                        <?php } ?>
+                        <?php if ($hasColor) { ?>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Color</label>
+                                <input type="text" name="color" class="form-control" required>
+                            </div>
+                        </div>
+                        <?php } ?>
+                        <?php if ($hasTipoMaterial) { ?>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Material</label>
+                                <select name="tipo_material" class="form-control" required>
+                                    <option value="">Seleccionar</option>
+                                    <?php foreach ($tiposMaterial as $tipoMaterial) { ?>
+                                        <option value="<?php echo htmlspecialchars($tipoMaterial); ?>"><?php echo htmlspecialchars($tipoMaterial); ?></option>
+                                    <?php } ?>
+                                </select>
+                            </div>
+                        </div>
+                        <?php } ?>
                         <div class="col-md-4">
                             <div class="form-group">
                                 <label>Precio minorista</label>
@@ -268,8 +336,11 @@ include_once "includes/header.php";
                                 <div class="form-group">
                                     <label>Tipo</label>
                                     <select name="tipo" class="form-control">
-                                        <option value="armazon">Armazon</option>
-                                        <option value="accesorio">Accesorio</option>
+                                        <?php foreach ($tiposProducto as $tipoProducto) { ?>
+                                            <option value="<?php echo htmlspecialchars($tipoProducto); ?>">
+                                                <?php echo htmlspecialchars(ucfirst(str_replace('-', ' ', $tipoProducto))); ?>
+                                            </option>
+                                        <?php } ?>
                                     </select>
                                 </div>
                             </div>

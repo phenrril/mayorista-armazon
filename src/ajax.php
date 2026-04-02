@@ -21,7 +21,7 @@ function ajax_json($payload, $statusCode = 200)
 
 function ajax_get_producto_query($conexion)
 {
-    $fields = array('codproducto', 'codigo', 'descripcion', 'precio', 'existencia', 'estado');
+    $fields = array('codproducto', 'codigo', 'descripcion', 'precio', 'existencia', 'estado', 'marca');
     if (mayorista_column_exists($conexion, 'producto', 'precio_mayorista')) {
         $fields[] = 'precio_mayorista';
     }
@@ -30,6 +30,34 @@ function ajax_get_producto_query($conexion)
     }
     if (mayorista_column_exists($conexion, 'producto', 'costo')) {
         $fields[] = 'costo';
+    }
+
+    return implode(', ', $fields);
+}
+
+function ajax_get_cliente_query($conexion)
+{
+    $fields = array('idcliente', 'nombre', 'telefono', 'direccion', 'dni', 'estado');
+    if (mayorista_column_exists($conexion, 'cliente', 'optica')) {
+        $fields[] = 'optica';
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'localidad')) {
+        $fields[] = 'localidad';
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'codigo_postal')) {
+        $fields[] = 'codigo_postal';
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'provincia')) {
+        $fields[] = 'provincia';
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'cuit')) {
+        $fields[] = 'cuit';
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'condicion_iva')) {
+        $fields[] = 'condicion_iva';
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'tipo_documento')) {
+        $fields[] = 'tipo_documento';
     }
 
     return implode(', ', $fields);
@@ -85,23 +113,42 @@ function ajax_limpiar_precio_detalle_editado($idDetalle)
 if (isset($_GET['q'])) {
     $datos = array();
     $busqueda = mysqli_real_escape_string($conexion, trim($_GET['q']));
+    $clienteQuery = ajax_get_cliente_query($conexion);
+    $condicionesBusqueda = array(
+        "nombre LIKE '%$busqueda%'",
+        "dni LIKE '%$busqueda%'",
+        "telefono LIKE '%$busqueda%'",
+    );
+    if (mayorista_column_exists($conexion, 'cliente', 'optica')) {
+        $condicionesBusqueda[] = "optica LIKE '%$busqueda%'";
+    }
     $query = mysqli_query(
         $conexion,
-        "SELECT * FROM cliente
+        "SELECT $clienteQuery FROM cliente
          WHERE estado = 1
-         AND (nombre LIKE '%$busqueda%' OR dni LIKE '%$busqueda%' OR telefono LIKE '%$busqueda%')
+         AND (" . implode(' OR ', $condicionesBusqueda) . ")
          ORDER BY nombre ASC
          LIMIT 20"
     );
 
     while ($row = mysqli_fetch_assoc($query)) {
         $cc = mayorista_obtener_cuenta_corriente($conexion, (int) $row['idcliente']);
+        $label = !empty($row['optica'])
+            ? trim($row['optica'] . ' - ' . $row['nombre'])
+            : $row['nombre'];
         $datos[] = array(
             'id' => (int) $row['idcliente'],
-            'label' => $row['nombre'],
+            'label' => $label,
             'dni' => $row['dni'],
             'direccion' => $row['direccion'],
             'telefono' => $row['telefono'],
+            'optica' => $row['optica'] ?? '',
+            'localidad' => $row['localidad'] ?? '',
+            'codigo_postal' => $row['codigo_postal'] ?? '',
+            'provincia' => $row['provincia'] ?? '',
+            'cuit' => $row['cuit'] ?? '',
+            'condicion_iva' => $row['condicion_iva'] ?? 'Consumidor Final',
+            'tipo_documento' => (int) ($row['tipo_documento'] ?? 96),
             'saldo_cc' => (float) $cc['saldo_actual'],
             'limite_credito' => (float) $cc['limite_credito'],
         );
@@ -151,7 +198,7 @@ if (isset($_GET['pro'])) {
             'precio_minorista' => (float) $row['precio'],
             'precio_mayorista' => isset($row['precio_mayorista']) ? (float) $row['precio_mayorista'] : (float) $row['precio'],
             'existencia' => (int) $row['existencia'],
-            'tipo' => $row['tipo'] ?? 'armazon',
+            'tipo' => $row['tipo'] ?? 'receta',
             'costo' => isset($row['costo']) ? (int) $row['costo'] : 0,
         );
     }
@@ -262,6 +309,51 @@ if (isset($_POST['update_precio'])) {
     exit();
 }
 
+if (isset($_POST['actualizar_tipo_venta'])) {
+    $tipoVenta = mayorista_tipo_venta_valido($_POST['tipo_venta'] ?? 'minorista');
+    $queryFields = ajax_get_producto_query($conexion);
+    $detalle = mysqli_query(
+        $conexion,
+        "SELECT d.id, d.cantidad, p.codproducto, $queryFields
+         FROM detalle_temp d
+         INNER JOIN producto p ON d.id_producto = p.codproducto
+         WHERE d.id_usuario = $id_user
+         ORDER BY d.id ASC"
+    );
+
+    if (!$detalle) {
+        ajax_json(array('success' => false, 'mensaje' => 'No se pudo actualizar el tipo de venta.'), 500);
+    }
+
+    $actualizados = 0;
+    while ($row = mysqli_fetch_assoc($detalle)) {
+        $idDetalle = (int) $row['id'];
+        if (ajax_precio_detalle_editado($idDetalle)) {
+            continue;
+        }
+
+        $precio = round((float) mayorista_precio_producto($row, $tipoVenta), 2);
+        $cantidad = (int) $row['cantidad'];
+        $total = $precio * $cantidad;
+        $update = mysqli_query(
+            $conexion,
+            "UPDATE detalle_temp
+             SET precio_venta = $precio, total = $total
+             WHERE id = $idDetalle AND id_usuario = $id_user"
+        );
+
+        if ($update) {
+            $actualizados++;
+        }
+    }
+
+    ajax_json(array(
+        'success' => true,
+        'actualizados' => $actualizados,
+        'tipo_venta' => $tipoVenta,
+    ));
+}
+
 if (isset($_POST['action'])) {
     $id = (int) $_POST['id'];
     $cant = max(1, (int) $_POST['cant']);
@@ -329,8 +421,13 @@ if (isset($_POST['procesarVenta'])) {
     $abona = round((float) $_POST['abona'], 2);
     $tipoVenta = mayorista_tipo_venta_valido($_POST['tipo_venta'] ?? 'minorista');
     $metodo_pago = (int) ($_POST['metodo_pago'] ?? 1);
+    $modoDespacho = trim($_POST['modo_despacho'] ?? 'A convenir');
     $observacion = mysqli_real_escape_string($conexion, trim($_POST['observacion'] ?? ''));
     $fecha = date('Y-m-d H:i:s');
+    if (!in_array($modoDespacho, mayorista_modos_despacho(), true)) {
+        $modoDespacho = 'A convenir';
+    }
+    $modoDespacho = mysqli_real_escape_string($conexion, $modoDespacho);
 
     if ($id_cliente <= 0) {
         ajax_json(array('mensaje' => 'error', 'detalle' => 'Selecciona un cliente válido.'));
@@ -385,6 +482,10 @@ if (isset($_POST['procesarVenta'])) {
         if (mayorista_column_exists($conexion, 'ventas', 'tipo_venta')) {
             $camposVenta[] = 'tipo_venta';
             $valoresVenta[] = "'$tipoVenta'";
+        }
+        if (mayorista_column_exists($conexion, 'ventas', 'modo_despacho')) {
+            $camposVenta[] = 'modo_despacho';
+            $valoresVenta[] = "'$modoDespacho'";
         }
         if (mayorista_column_exists($conexion, 'ventas', 'precio_modificado')) {
             $camposVenta[] = 'precio_modificado';
@@ -555,6 +656,7 @@ if (isset($_POST['procesarVenta'])) {
             'total' => $total,
             'abona' => $abona,
             'monto_cc' => $montoCc,
+            'modo_despacho' => $modoDespacho,
             'saldo_cc_cliente' => $saldoCcCliente,
         ));
     } catch (Exception $e) {
@@ -581,15 +683,81 @@ if (isset($_POST['nuevo_cliente'])) {
     $telefono = mysqli_real_escape_string($conexion, trim($_POST['telefono_cliente'] ?? ''));
     $direccion = mysqli_real_escape_string($conexion, trim($_POST['direccion_cliente'] ?? ''));
     $dni = mysqli_real_escape_string($conexion, trim($_POST['dni_cliente'] ?? ''));
+    $cuit = mysqli_real_escape_string($conexion, trim($_POST['cuit_cliente'] ?? ''));
+    $optica = mysqli_real_escape_string($conexion, trim($_POST['optica_cliente'] ?? ''));
+    $localidad = mysqli_real_escape_string($conexion, trim($_POST['localidad_cliente'] ?? ''));
+    $codigoPostal = mysqli_real_escape_string($conexion, trim($_POST['codigo_postal_cliente'] ?? ''));
+    $provincia = mysqli_real_escape_string($conexion, trim($_POST['provincia_cliente'] ?? ''));
+    $condicionIva = trim($_POST['condicion_iva_cliente'] ?? 'Consumidor Final');
+    $tipoDocumento = (int) ($_POST['tipo_documento_cliente'] ?? 96);
+
+    if (!in_array($condicionIva, array(
+        'Consumidor Final',
+        'IVA Responsable Inscripto',
+        'Responsable Monotributo',
+        'IVA Sujeto Exento',
+        'IVA Responsable no Inscripto',
+        'IVA no Responsable',
+        'Sujeto no Categorizado',
+        'Proveedor del Exterior',
+        'Cliente del Exterior',
+        'IVA Liberado - Ley N° 19.640',
+    ), true)) {
+        $condicionIva = 'Consumidor Final';
+    }
+    if (!in_array($tipoDocumento, array(80, 96), true)) {
+        $tipoDocumento = 96;
+    }
+    $condicionIva = mysqli_real_escape_string($conexion, $condicionIva);
 
     if ($nombre === '' || $telefono === '' || $direccion === '') {
         ajax_json(array('success' => false, 'mensaje' => 'Nombre, teléfono y dirección son obligatorios.'));
     }
+    if (mayorista_column_exists($conexion, 'cliente', 'optica') && ($optica === '' || $localidad === '' || $codigoPostal === '' || $provincia === '')) {
+        ajax_json(array('success' => false, 'mensaje' => 'Completá óptica, localidad, código postal y provincia.'));
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'tipo_documento') && $tipoDocumento === 80 && $cuit === '') {
+        ajax_json(array('success' => false, 'mensaje' => 'Para tipo CUIT, el campo CUIT es obligatorio.'));
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'tipo_documento') && $tipoDocumento === 96 && $dni === '') {
+        ajax_json(array('success' => false, 'mensaje' => 'Para tipo DNI, el campo DNI es obligatorio.'));
+    }
+
+    $insertColumns = array('nombre', 'telefono', 'direccion', 'usuario_id', 'dni', 'estado');
+    $insertValues = array("'$nombre'", "'$telefono'", "'$direccion'", $id_user, "'$dni'", 1);
+    if (mayorista_column_exists($conexion, 'cliente', 'optica')) {
+        $insertColumns[] = 'optica';
+        $insertValues[] = "'$optica'";
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'localidad')) {
+        $insertColumns[] = 'localidad';
+        $insertValues[] = "'$localidad'";
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'codigo_postal')) {
+        $insertColumns[] = 'codigo_postal';
+        $insertValues[] = "'$codigoPostal'";
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'provincia')) {
+        $insertColumns[] = 'provincia';
+        $insertValues[] = "'$provincia'";
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'cuit')) {
+        $insertColumns[] = 'cuit';
+        $insertValues[] = "'$cuit'";
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'condicion_iva')) {
+        $insertColumns[] = 'condicion_iva';
+        $insertValues[] = "'$condicionIva'";
+    }
+    if (mayorista_column_exists($conexion, 'cliente', 'tipo_documento')) {
+        $insertColumns[] = 'tipo_documento';
+        $insertValues[] = $tipoDocumento;
+    }
 
     $query_insert = mysqli_query(
         $conexion,
-        "INSERT INTO cliente(nombre, telefono, direccion, usuario_id, dni, estado)
-         VALUES ('$nombre', '$telefono', '$direccion', $id_user, '$dni', 1)"
+        "INSERT INTO cliente(" . implode(', ', $insertColumns) . ")
+         VALUES (" . implode(', ', $insertValues) . ")"
     );
 
     if (!$query_insert) {
@@ -604,7 +772,7 @@ if (isset($_POST['nuevo_cliente'])) {
         'mensaje' => 'Cliente creado correctamente.',
         'cliente' => array(
             'id' => $idCliente,
-            'label' => $nombre,
+            'label' => $optica !== '' ? trim($optica . ' - ' . $nombre) : $nombre,
             'telefono' => $telefono,
             'direccion' => $direccion,
             'saldo_cc' => 0,

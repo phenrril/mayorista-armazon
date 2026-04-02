@@ -2,76 +2,268 @@
  * Script para manejar la facturación electrónica
  */
 
-// Función para generar factura electrónica
-function generarFacturaElectronica(idVenta) {
-    // Confirmación antes de generar
-    Swal.fire({
-        title: '¿Generar Factura Electrónica?',
-        html: `
-            <p>Se generará la factura electrónica para esta venta.</p>
-            <p class="text-muted small">El sistema determinará automáticamente el tipo de comprobante (A, B o C) según la condición IVA del cliente.</p>
-        `,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#667eea',
-        cancelButtonColor: '#d33',
-        confirmButtonText: '<i class="fas fa-file-invoice mr-2"></i>Sí, generar',
-        cancelButtonText: '<i class="fas fa-times mr-2"></i>Cancelar',
-        showLoaderOnConfirm: true,
-        preConfirm: () => {
-            return fetch('procesar_factura.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: 'id_venta=' + idVenta
-            })
-            .then(response => {
-                // Intentar parsear como JSON siempre, incluso si el status es 500
-                return response.text().then(text => {
-                    try {
-                        const data = JSON.parse(text);
-                        if (!data.success) {
-                            let msg = data.message || 'Error desconocido';
-                            if (data.debug_file) msg += ' (' + data.debug_file + ')';
-                            throw new Error(msg);
-                        }
-                        return data;
-                    } catch (jsonError) {
-                        if (jsonError.message.startsWith('Error:') || !text.startsWith('<')) {
-                            throw jsonError;
-                        }
-                        // Si la respuesta es HTML (error de PHP sin capturar), mostrar status
-                        throw new Error('Error del servidor (HTTP ' + response.status + '). Revisá los logs del contenedor: docker logs optica_web');
-                    }
-                });
-            })
-            .catch(error => {
-                Swal.showValidationMessage(`Error: ${error.message}`);
-            });
-        },
-        allowOutsideClick: () => !Swal.isLoading()
-    }).then((result) => {
-        if (result.isConfirmed && result.value.success) {
-            // Mostrar resultado exitoso
-            Swal.fire({
-                icon: 'success',
-                title: '¡Factura Generada!',
-                html: `
-                    <div class="text-left">
-                        <p><strong>Comprobante:</strong> ${result.value.data.comprobante}</p>
-                        <p><strong>CAE:</strong> ${result.value.data.cae}</p>
-                        <p><strong>Vencimiento CAE:</strong> ${result.value.data.vencimiento_cae}</p>
-                    </div>
-                `,
-                confirmButtonColor: '#667eea',
-                confirmButtonText: 'Aceptar'
-            }).then(() => {
-                // Recargar la página o actualizar la tabla
-                location.reload();
-            });
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function formatearMoneda(value) {
+    return '$' + Number(value || 0).toLocaleString('es-AR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+function parseJsonResponse(response) {
+    return response.text().then(text => {
+        try {
+            const data = JSON.parse(text);
+            if (!data.success) {
+                let msg = data.message || 'Error desconocido';
+                if (data.debug_file) {
+                    msg += ' (' + data.debug_file + ')';
+                }
+                throw new Error(msg);
+            }
+            return data;
+        } catch (jsonError) {
+            if (jsonError.message && jsonError.message.startsWith('Error:')) {
+                throw jsonError;
+            }
+            if (!text.startsWith('<')) {
+                throw jsonError;
+            }
+            throw new Error('Error del servidor (HTTP ' + response.status + '). Revisá los logs del contenedor.');
         }
     });
+}
+
+function buildFacturacionBody(idVenta, overrideData = {}) {
+    const params = new URLSearchParams();
+    params.append('id_venta', idVenta);
+
+    Object.entries(overrideData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+            params.append(key, String(value).trim());
+        }
+    });
+
+    return params.toString();
+}
+
+function obtenerDatosFacturacion(idVenta, overrideData = {}) {
+    return fetch('obtener_datos_facturacion.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: buildFacturacionBody(idVenta, overrideData)
+    }).then(parseJsonResponse);
+}
+
+function procesarFacturaElectronica(idVenta, overrideData = {}) {
+    return fetch('procesar_factura.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: buildFacturacionBody(idVenta, overrideData)
+    }).then(parseJsonResponse);
+}
+
+function renderResumenFacturacion(data) {
+    const cliente = data.cliente;
+    const tipo = data.tipo_comprobante;
+    const documento = cliente.numero_documento_display || 'S/D';
+    const fechaEmision = data.fecha_emision?.display || '';
+
+    return `
+        <div class="text-left">
+            <p class="mb-2"><strong>Venta:</strong> #${escapeHtml(data.id_venta)}</p>
+            <p class="mb-2"><strong>Total:</strong> ${escapeHtml(formatearMoneda(data.total))}</p>
+            <p class="mb-2"><strong>Fecha de emisión:</strong> ${escapeHtml(fechaEmision)}</p>
+            <hr>
+            <p class="mb-2"><strong>Nombre / Razón social:</strong> ${escapeHtml(cliente.nombre || 'CONSUMIDOR FINAL')}</p>
+            <p class="mb-2"><strong>CUIT:</strong> ${escapeHtml(cliente.cuit || 'S/D')}</p>
+            <p class="mb-2"><strong>DNI:</strong> ${escapeHtml(cliente.dni || 'S/D')}</p>
+            <p class="mb-2"><strong>Tipo de factura:</strong> ${escapeHtml(tipo.descripcion)}</p>
+            <p class="mb-2"><strong>Condición IVA:</strong> ${escapeHtml(cliente.condicion_iva || 'Consumidor Final')}</p>
+            <p class="mb-2"><strong>Documento a informar:</strong> ${escapeHtml(cliente.tipo_documento_desc)} ${escapeHtml(documento)}</p>
+            <p class="text-muted small mb-0">Si necesitás corregir algo, podés modificar los datos antes de emitir. Los campos que dejes vacíos toman los datos cargados actualmente.</p>
+        </div>
+    `;
+}
+
+function renderOpcionesTipoFactura(tiposDisponibles, tipoActualId) {
+    const opciones = ['<option value="">Usar tipo actual</option>'];
+
+    tiposDisponibles.forEach(tipo => {
+        const actual = Number(tipo.id) === Number(tipoActualId) ? ' (actual)' : '';
+        opciones.push(`<option value="${escapeHtml(tipo.codigo)}">${escapeHtml(tipo.descripcion + actual)}</option>`);
+    });
+
+    return opciones.join('');
+}
+
+function renderOpcionesTipoDocumento(tipoActual) {
+    return `
+        <option value="">Usar documento actual</option>
+        <option value="DNI">DNI${tipoActual === 'DNI' ? ' (actual)' : ''}</option>
+        <option value="CUIT">CUIT${tipoActual === 'CUIT' ? ' (actual)' : ''}</option>
+        <option value="CF">Consumidor Final${tipoActual === 'CF' ? ' (actual)' : ''}</option>
+    `;
+}
+
+async function solicitarModificacionFacturacion(previewData) {
+    const cliente = previewData.cliente;
+    const fechaEmision = previewData.fecha_emision?.db || '';
+
+    const result = await Swal.fire({
+        title: 'Modificar datos antes de facturar',
+        html: `
+            <div class="text-left">
+                <div class="form-group mb-2">
+                    <label for="swal-nombre-cliente" style="color: #000;">Nombre / Razón social</label>
+                    <input id="swal-nombre-cliente" class="swal2-input" placeholder="${escapeHtml(cliente.nombre || 'CONSUMIDOR FINAL')}" style="margin: 0; width: 100%;">
+                </div>
+                <div class="form-group mb-2">
+                    <label for="swal-cuit" style="color: #000;">CUIT</label>
+                    <input id="swal-cuit" class="swal2-input" placeholder="${escapeHtml(cliente.cuit || 'Sin CUIT cargado')}" style="margin: 0; width: 100%;">
+                </div>
+                <div class="form-group mb-2">
+                    <label for="swal-dni" style="color: #000;">DNI</label>
+                    <input id="swal-dni" class="swal2-input" placeholder="${escapeHtml(cliente.dni || 'Sin DNI cargado')}" style="margin: 0; width: 100%;">
+                </div>
+                <div class="form-group mb-2">
+                    <label for="swal-tipo-factura" style="color: #000;">Tipo de factura</label>
+                    <select id="swal-tipo-factura" class="swal2-select" style="margin: 0; width: 100%; background: #fff; color: #000; border: 1px solid #ced4da;">
+                        ${renderOpcionesTipoFactura(previewData.tipos_disponibles || [], previewData.tipo_comprobante.id)}
+                    </select>
+                </div>
+                <div class="form-group mb-2">
+                    <label for="swal-fecha-emision" style="color: #000;">Fecha de emisión</label>
+                    <input id="swal-fecha-emision" type="date" class="swal2-input" value="${escapeHtml(fechaEmision)}" style="margin: 0; width: 100%;">
+                </div>
+                <div class="form-group mb-0">
+                    <label for="swal-tipo-documento" style="color: #000;">Documento a informar</label>
+                    <select id="swal-tipo-documento" class="swal2-select" style="margin: 0; width: 100%; background: #fff; color: #000; border: 1px solid #ced4da;">
+                        ${renderOpcionesTipoDocumento(cliente.tipo_documento_preferido)}
+                    </select>
+                </div>
+                <p class="text-muted small mt-3 mb-0">Campo vacío = usar dato ya cargado en el sistema.</p>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonColor: '#667eea',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Aplicar cambios',
+        cancelButtonText: 'Volver',
+        focusConfirm: false,
+        preConfirm: () => {
+            const overrides = {};
+            const nombre = document.getElementById('swal-nombre-cliente').value.trim();
+            const cuit = document.getElementById('swal-cuit').value.trim();
+            const dni = document.getElementById('swal-dni').value.trim();
+            const tipoFactura = document.getElementById('swal-tipo-factura').value.trim();
+            const fechaEmisionNueva = document.getElementById('swal-fecha-emision').value.trim();
+            const tipoDocumento = document.getElementById('swal-tipo-documento').value.trim();
+
+            if (nombre !== '') {
+                overrides.nombre_cliente = nombre;
+            }
+            if (cuit !== '') {
+                overrides.cuit = cuit;
+            }
+            if (dni !== '') {
+                overrides.dni = dni;
+            }
+            if (tipoFactura !== '') {
+                overrides.tipo_factura = tipoFactura;
+            }
+            if (fechaEmisionNueva !== '' && fechaEmisionNueva !== fechaEmision) {
+                overrides.fecha_emision = fechaEmisionNueva;
+            }
+            if (tipoDocumento !== '') {
+                overrides.tipo_documento = tipoDocumento;
+            }
+
+            return overrides;
+        }
+    });
+
+    return result.isConfirmed ? result.value : null;
+}
+
+async function generarFacturaElectronica(idVenta, overrideData = {}) {
+    try {
+        const preview = await obtenerDatosFacturacion(idVenta, overrideData);
+
+        const confirmacion = await Swal.fire({
+            title: '¿Generar Factura Electrónica?',
+            html: renderResumenFacturacion(preview.data),
+            icon: 'question',
+            width: 650,
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonColor: '#667eea',
+            denyButtonColor: '#f0ad4e',
+            cancelButtonColor: '#d33',
+            confirmButtonText: '<i class="fas fa-file-invoice mr-2"></i>Sí, generar',
+            denyButtonText: '<i class="fas fa-edit mr-2"></i>Modificar datos',
+            cancelButtonText: '<i class="fas fa-times mr-2"></i>Cancelar'
+        });
+
+        if (confirmacion.isDenied) {
+            const nuevosOverrides = await solicitarModificacionFacturacion(preview.data);
+            if (nuevosOverrides) {
+                await generarFacturaElectronica(idVenta, nuevosOverrides);
+            }
+            return;
+        }
+
+        if (!confirmacion.isConfirmed) {
+            return;
+        }
+
+        Swal.fire({
+            title: 'Generando factura...',
+            html: 'Esperá un momento mientras se solicita el CAE',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        const resultado = await procesarFacturaElectronica(idVenta, overrideData);
+        Swal.close();
+
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Factura Generada!',
+            html: `
+                <div class="text-left">
+                    <p><strong>Comprobante:</strong> ${escapeHtml(resultado.data.comprobante)}</p>
+                    <p><strong>CAE:</strong> ${escapeHtml(resultado.data.cae)}</p>
+                    <p><strong>Vencimiento CAE:</strong> ${escapeHtml(resultado.data.vencimiento_cae)}</p>
+                </div>
+            `,
+            confirmButtonColor: '#667eea',
+            confirmButtonText: 'Aceptar'
+        });
+
+        location.reload();
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo generar la factura: ' + error.message,
+            confirmButtonColor: '#d33'
+        });
+    }
 }
 
 // Función para ver detalles de una factura electrónica
@@ -96,6 +288,7 @@ function verDetallesFactura(idVenta) {
                 // Determinar color según estado
                 let estadoColor = 'success';
                 let estadoIcon = 'check-circle';
+                const discriminaIva = parseInt(f.tipo_comprobante, 10) === 1;
                 if (f.estado === 'rechazado' || f.estado === 'error') {
                     estadoColor = 'danger';
                     estadoIcon = 'times-circle';
@@ -146,15 +339,21 @@ function verDetallesFactura(idVenta) {
                             
                             <hr>
                             
-                            <div class="row mb-2">
-                                <div class="col-6"><strong>Neto Gravado:</strong></div>
-                                <div class="col-6">$${parseFloat(f.neto_gravado).toFixed(2)}</div>
-                            </div>
-                            
-                            <div class="row mb-2">
-                                <div class="col-6"><strong>IVA:</strong></div>
-                                <div class="col-6">$${parseFloat(f.iva_total).toFixed(2)}</div>
-                            </div>
+                            ${discriminaIva ? `
+                                <div class="row mb-2">
+                                    <div class="col-6"><strong>Neto Gravado:</strong></div>
+                                    <div class="col-6">$${parseFloat(f.neto_gravado).toFixed(2)}</div>
+                                </div>
+                                
+                                <div class="row mb-2">
+                                    <div class="col-6"><strong>IVA:</strong></div>
+                                    <div class="col-6">$${parseFloat(f.iva_total).toFixed(2)}</div>
+                                </div>
+                            ` : `
+                                <div class="alert alert-light border mb-3">
+                                    En ${f.tipo_comprobante_desc} el IVA no se discrimina visualmente.
+                                </div>
+                            `}
                             
                             <div class="row mb-2">
                                 <div class="col-6"><strong><h5>Total:</h5></strong></div>

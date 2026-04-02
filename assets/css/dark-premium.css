@@ -617,7 +617,7 @@ textarea.form-control {
   color: var(--text-primary) !important;
   border: 1px solid var(--border-subtle) !important;
   border-radius: var(--radius-md) !important;
-  background: rgba(255, 255, 255, 0.03) !important;
+  background: rgba(8, 8, 10, 0.96) !important;
 }
 
 .form-control::placeholder,
@@ -633,6 +633,21 @@ textarea.form-control {
   background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px) !important;
   background-size: 6px 6px, 6px 6px !important;
   background-repeat: no-repeat !important;
+}
+
+select,
+select.form-control,
+select.form-control-modern,
+select.custom-select,
+select.custom-select-modern {
+  color: var(--text-primary) !important;
+  background-color: #08080a !important;
+}
+
+select option,
+select optgroup {
+  color: #f3f4f6 !important;
+  background-color: #08080a !important;
 }
 
 .table,
@@ -678,6 +693,7 @@ textarea.form-control {
 
 .product-search-box {
   padding: 1.3rem;
+  overflow: visible;
 }
 
 .search-box {
@@ -703,8 +719,9 @@ textarea.form-control {
 .precio-editable-input {
   width: 115px;
   text-align: right;
-  border: 1px dashed rgba(255, 255, 255, 0.16) !important;
-  background: rgba(255, 255, 255, 0.045) !important;
+  color: #111827 !important;
+  border: 1px solid rgba(17, 24, 39, 0.18) !important;
+  background: #ffffff !important;
 }
 
 .cliente-autocomplete-menu.ui-autocomplete {
@@ -717,6 +734,42 @@ textarea.form-control {
   box-shadow: var(--shadow-elevated);
   backdrop-filter: blur(16px);
   z-index: 2000;
+}
+
+.producto-autocomplete-menu.ui-autocomplete {
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(10, 10, 13, 0.98);
+  box-shadow: var(--shadow-elevated);
+  backdrop-filter: blur(16px);
+  z-index: 2000;
+}
+
+.producto-autocomplete-menu .ui-menu-item-wrapper {
+  padding: 0.75rem 0.9rem;
+  border: 0;
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.producto-autocomplete-menu .ui-state-active,
+.producto-autocomplete-menu .ui-widget-content .ui-state-active,
+.producto-autocomplete-menu .ui-menu-item-wrapper.ui-state-active {
+  margin: 0;
+  border: 0;
+  color: var(--text-primary);
+  background: rgba(94, 106, 210, 0.22);
+}
+
+.ventas-container #modo_despacho {
+  margin-bottom: 0.45rem;
+}
+
+.ventas-container .row + .row .cc-metric {
+  margin-top: 0.4rem;
 }
 
 .cliente-autocomplete-menu .ui-menu-item-wrapper {
@@ -768,6 +821,23 @@ textarea.form-control {
 
 .swal2-popup {
   margin: 0 auto !important;
+}
+
+.swal2-popup select.swal2-select {
+  color: #000 !important;
+  background-color: #fff !important;
+  border: 1px solid #ced4da !important;
+  background-image: none !important;
+  appearance: auto !important;
+  -webkit-appearance: menulist !important;
+  -moz-appearance: menulist !important;
+  padding-right: 0.75rem !important;
+}
+
+.swal2-popup select.swal2-select option,
+.swal2-popup select.swal2-select optgroup {
+  color: #000 !important;
+  background-color: #fff !important;
 }
 
 .total-display {
@@ -1008,20 +1078,49 @@ body.app-shell .sb-topnav {
 }
 
 body.app-shell .sb-topnav .navbar-brand {
-  color: var(--text-primary) !important;
-  font-weight: 800;
-  letter-spacing: -0.04em;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
 }
 
 body.app-shell .sb-topnav .navbar-brand::before {
+  content: none;
+}
+
+body.app-shell .sb-topnav .navbar-brand-frame {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.8rem;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015));
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.34),
+    0 0 22px rgba(94, 106, 210, 0.12);
+  overflow: hidden;
+}
+
+body.app-shell .sb-topnav .navbar-brand-frame::before {
   content: "";
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 0.6rem;
-  border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 18px rgba(94, 106, 210, 0.7);
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.07), transparent 70%);
+}
+
+body.app-shell .sb-topnav .navbar-brand-logo {
+  display: block;
+  position: relative;
+  z-index: 1;
+  width: min(100%, 190px);
+  max-height: 48px;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.24));
 }
 
 body.app-shell .sb-topnav #sidebarToggle,
@@ -1097,14 +1196,36 @@ body.login-page {
   text-align: center;
 }
 
+.logo-frame {
+  position: relative;
+  display: inline-block;
+  padding: 0.85rem 1rem;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.34),
+    0 0 32px rgba(94, 106, 210, 0.14);
+  overflow: hidden;
+}
+
+.logo-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.08), transparent 68%);
+}
+
 .logo {
-  width: 88px;
-  height: 88px;
-  object-fit: cover;
-  border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
+  display: block;
+  width: min(100%, 360px);
+  max-height: 120px;
+  height: auto;
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 20px;
+  box-shadow: 0 0 26px rgba(0, 0, 0, 0.22);
 }
 
 .login-header {
@@ -1275,8 +1396,16 @@ body.login-page {
     width: auto;
     max-width: calc(100vw - 7rem);
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+
+  body.app-shell .sb-topnav .navbar-brand-frame {
+    padding: 0.4rem 0.65rem;
+    border-radius: 18px;
+  }
+
+  body.app-shell .sb-topnav .navbar-brand-logo {
+    width: min(100%, 158px);
+    max-height: 40px;
   }
 
   body.app-shell #layoutSidenav #layoutSidenav_nav {

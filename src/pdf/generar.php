@@ -8,6 +8,7 @@ if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
 require_once '../../conexion.php';
 require_once '../includes/mayorista_helpers.php';
 require_once 'fpdf/fpdf.php';
+require_once 'pdf_footer_helper.php';
 
 $idVenta = isset($_GET['v']) ? (int) $_GET['v'] : 0;
 $idCliente = isset($_GET['cl']) ? (int) $_GET['cl'] : 0;
@@ -20,8 +21,26 @@ $config = mysqli_query($conexion, "SELECT * FROM configuracion LIMIT 1");
 $empresa = $config ? mysqli_fetch_assoc($config) : array();
 
 $camposVenta = array('v.*', 'c.nombre AS cliente_nombre', 'c.telefono', 'c.direccion', 'm.descripcion AS metodo_pago');
+if (mayorista_column_exists($conexion, 'cliente', 'optica')) {
+    $camposVenta[] = 'c.optica';
+}
+if (mayorista_column_exists($conexion, 'cliente', 'localidad')) {
+    $camposVenta[] = 'c.localidad';
+}
+if (mayorista_column_exists($conexion, 'cliente', 'codigo_postal')) {
+    $camposVenta[] = 'c.codigo_postal';
+}
+if (mayorista_column_exists($conexion, 'cliente', 'provincia')) {
+    $camposVenta[] = 'c.provincia';
+}
+if (mayorista_column_exists($conexion, 'cliente', 'cuit')) {
+    $camposVenta[] = 'c.cuit';
+}
 if (mayorista_column_exists($conexion, 'ventas', 'tipo_venta')) {
     $camposVenta[] = 'v.tipo_venta';
+}
+if (mayorista_column_exists($conexion, 'ventas', 'modo_despacho')) {
+    $camposVenta[] = 'v.modo_despacho';
 }
 if (mayorista_column_exists($conexion, 'ventas', 'monto_cc')) {
     $camposVenta[] = 'v.monto_cc';
@@ -46,6 +65,15 @@ if (!$ventaData) {
 }
 
 $camposDetalle = array('d.cantidad', 'd.precio', 'd.precio_original', 'p.codigo', 'p.descripcion');
+if (mayorista_column_exists($conexion, 'producto', 'marca')) {
+    $camposDetalle[] = 'p.marca';
+}
+if (mayorista_column_exists($conexion, 'producto', 'modelo')) {
+    $camposDetalle[] = 'p.modelo';
+}
+if (mayorista_column_exists($conexion, 'producto', 'color')) {
+    $camposDetalle[] = 'p.color';
+}
 if (mayorista_column_exists($conexion, 'detalle_venta', 'precio_personalizado')) {
     $camposDetalle[] = 'd.precio_personalizado';
 }
@@ -67,101 +95,198 @@ function money_pdf($amount)
     return '$ ' . number_format((float) $amount, 2, ',', '.');
 }
 
-function printLabel($pdf, $label, $value, $x, $y, $width = 84)
+function remito_texto($value, $fallback = '')
 {
-    $pdf->SetXY($x, $y);
-    $pdf->SetFont('Arial', 'B', 9);
-    $pdf->Cell(28, 6, utf8_decode($label), 0, 0, 'L');
-    $pdf->SetFont('Arial', '', 9);
-    $pdf->Cell($width, 6, utf8_decode((string) $value), 0, 1, 'L');
+    $value = trim((string) $value);
+    return $value !== '' ? $value : $fallback;
 }
 
-$pdf = new FPDF('P', 'mm', 'A4');
+function remito_modelo_color($row)
+{
+    $partes = array_filter(array(
+        trim((string) ($row['marca'] ?? '')),
+        trim((string) ($row['modelo'] ?? '')),
+        trim((string) ($row['color'] ?? '')),
+    ));
+
+    if (empty($partes)) {
+        return trim((string) ($row['codigo'] ?? ''));
+    }
+
+    return implode(' / ', $partes);
+}
+
+function remito_campo_linea($pdf, $label, $value, $x, $y, $width)
+{
+    $pdf->SetFont('Arial', '', 7.7);
+    $pdf->SetXY($x, $y);
+    $pdf->Cell($width, 4, utf8_decode($label), 0, 1, 'L');
+    $pdf->SetDrawColor(120, 120, 120);
+    $pdf->SetLineWidth(0.2);
+    $pdf->Line($x, $y + 9.5, $x + $width, $y + 9.5);
+    $pdf->SetFont('Arial', '', 10);
+    $pdf->SetXY($x + 1, $y + 4.5);
+    $pdf->Cell($width - 2, 4.5, utf8_decode((string) $value), 0, 1, 'L');
+}
+
+function remito_dibujar_header($pdf, $brandLogoPath, $ventaData)
+{
+    $left = 12;
+    $rightColX = 116;
+    $top = 12;
+
+    if ($brandLogoPath && file_exists($brandLogoPath)) {
+        $pdf->Image($brandLogoPath, 16, 12, 58, 0, 'PNG');
+    }
+
+    remito_campo_linea(
+        $pdf,
+        'FECHA:',
+        date('d/m/Y', strtotime($ventaData['fecha'] ?? 'now')),
+        $rightColX,
+        $top + 1,
+        64
+    );
+
+    $fieldWidth = 76;
+    $fieldGap = 8;
+    $leftY = 44;
+    $rowGap = 11.5;
+    remito_campo_linea($pdf, 'OPTICA:', remito_texto($ventaData['optica'] ?? ''), $left, $leftY, $fieldWidth);
+    remito_campo_linea($pdf, 'DIRECCION:', remito_texto($ventaData['direccion'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY, $fieldWidth);
+    remito_campo_linea($pdf, 'NOMBRE:', remito_texto($ventaData['cliente_nombre'] ?? ''), $left, $leftY + $rowGap, $fieldWidth);
+    remito_campo_linea($pdf, 'LOCALIDAD:', remito_texto($ventaData['localidad'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + $rowGap, $fieldWidth);
+    remito_campo_linea($pdf, 'CUIT:', remito_texto($ventaData['cuit'] ?? '', remito_texto($ventaData['dni'] ?? '')), $left, $leftY + ($rowGap * 2), $fieldWidth);
+    remito_campo_linea($pdf, 'CODIGO POSTAL:', remito_texto($ventaData['codigo_postal'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + ($rowGap * 2), $fieldWidth);
+    remito_campo_linea($pdf, 'TELEFONO:', remito_texto($ventaData['telefono'] ?? ''), $left, $leftY + ($rowGap * 3), $fieldWidth);
+    remito_campo_linea($pdf, 'PROVINCIA:', remito_texto($ventaData['provincia'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + ($rowGap * 3), $fieldWidth);
+    remito_campo_linea($pdf, 'MODO DESPACHO:', remito_texto($ventaData['modo_despacho'] ?? '', 'A convenir'), $left, $leftY + ($rowGap * 4), 160);
+
+    return 111;
+}
+
+function remito_dibujar_tabla_header($pdf, $y, $widths)
+{
+    $pdf->SetFillColor(226, 226, 226);
+    $pdf->SetTextColor(60, 60, 60);
+    $pdf->SetFont('Arial', '', 8.4);
+    $pdf->SetXY(12, $y);
+    $pdf->Cell($widths[0], 8, 'CANT.', 1, 0, 'C', true);
+    $pdf->Cell($widths[1], 8, utf8_decode('MODELO Y COLOR'), 1, 0, 'C', true);
+    $pdf->Cell($widths[2], 8, utf8_decode('DESCRIPCION'), 1, 0, 'C', true);
+    $pdf->Cell($widths[3], 8, utf8_decode('PRECIO UNIT.'), 1, 0, 'C', true);
+    $pdf->Cell($widths[4], 8, 'IMPORTE', 1, 1, 'C', true);
+}
+
+function remito_dibujar_fila($pdf, $y, $widths, $rowHeight, $item = null)
+{
+    $pdf->SetFont('Arial', '', 8.7);
+    $pdf->SetTextColor(30, 30, 30);
+    $pdf->SetXY(12, $y);
+
+    $cantidad = $item ? (string) $item['cantidad'] : '';
+    $modeloColor = $item ? remito_modelo_color($item) : '';
+    $descripcion = $item ? trim((string) ($item['descripcion'] ?? '')) : '';
+    $precio = $item ? money_pdf($item['precio']) : '';
+    $importe = $item ? money_pdf(((float) $item['cantidad']) * ((float) $item['precio'])) : '';
+
+    $pdf->Cell($widths[0], $rowHeight, utf8_decode($cantidad), 1, 0, 'C');
+    $pdf->Cell($widths[1], $rowHeight, utf8_decode(substr($modeloColor, 0, 46)), 1, 0, 'L');
+    $pdf->Cell($widths[2], $rowHeight, utf8_decode(substr($descripcion, 0, 22)), 1, 0, 'L');
+    $pdf->Cell($widths[3], $rowHeight, utf8_decode($precio), 1, 0, 'R');
+    $pdf->Cell($widths[4], $rowHeight, utf8_decode($importe), 1, 1, 'R');
+}
+
+$footerAssets = mayorista_pdf_footer_assets();
+
+$pdf = new MayoristaBrandedPdf('P', 'mm', 'A4');
+$pdf->setBrandFooter(
+    $footerAssets['brand_logos'],
+    $footerAssets['whatsapp_icon'],
+    $footerAssets['whatsapp_text'],
+    $footerAssets['instagram_icon'],
+    $footerAssets['instagram_text']
+);
 $pdf->SetMargins(12, 12, 12);
+$pdf->SetAutoPageBreak(true, $pdf->getFooterHeight() + 6);
 $pdf->AddPage();
 
-$pdf->SetFillColor(30, 41, 59);
-$pdf->Rect(12, 12, 186, 26, 'F');
-$pdf->SetTextColor(255, 255, 255);
-$pdf->SetFont('Arial', 'B', 16);
-$pdf->SetXY(16, 18);
-$pdf->Cell(120, 8, utf8_decode($empresa['nombre'] ?? 'Sistema Mayorista'), 0, 1);
-$pdf->SetFont('Arial', '', 10);
-$pdf->SetX(16);
-$pdf->Cell(120, 6, utf8_decode('Comprobante de venta'), 0, 1);
-$pdf->SetTextColor(0, 0, 0);
-
-printLabel($pdf, 'Fecha', date('d/m/Y H:i', strtotime($ventaData['fecha'])), 14, 44);
-printLabel($pdf, 'Venta', '#' . $ventaData['id'], 110, 44, 40);
-printLabel($pdf, 'Tipo', ucfirst($ventaData['tipo_venta'] ?? 'minorista'), 14, 51);
-printLabel($pdf, 'Metodo', $ventaData['metodo_pago'] ?: 'Sin definir', 110, 51, 40);
-
-$pdf->Ln(12);
-$pdf->SetFont('Arial', 'B', 11);
-$pdf->Cell(186, 8, utf8_decode('Cliente'), 0, 1);
-$pdf->SetFont('Arial', '', 9);
-$pdf->SetFillColor(248, 250, 252);
-$pdf->Cell(70, 8, utf8_decode($ventaData['cliente_nombre']), 1, 0, 'L', true);
-$pdf->Cell(46, 8, utf8_decode($ventaData['telefono'] ?: '-'), 1, 0, 'L', true);
-$pdf->Cell(70, 8, utf8_decode($ventaData['direccion'] ?: '-'), 1, 1, 'L', true);
-
-$pdf->Ln(8);
-$pdf->SetFont('Arial', 'B', 11);
-$pdf->Cell(186, 8, utf8_decode('Detalle del pedido'), 0, 1);
-$pdf->SetFillColor(226, 232, 240);
-$pdf->SetFont('Arial', 'B', 9);
-$pdf->Cell(24, 8, 'Codigo', 1, 0, 'C', true);
-$pdf->Cell(70, 8, utf8_decode('Descripcion'), 1, 0, 'L', true);
-$pdf->Cell(18, 8, 'Cant.', 1, 0, 'C', true);
-$pdf->Cell(28, 8, 'Base', 1, 0, 'R', true);
-$pdf->Cell(22, 8, 'Venta', 1, 0, 'R', true);
-$pdf->Cell(24, 8, 'Subtotal', 1, 1, 'R', true);
-
-$pdf->SetFont('Arial', '', 9);
-$total = 0;
+$brandLogoPath = realpath(__DIR__ . '/../../assets/logo-pdf-clean-white.png');
+$items = array();
+$totalVenta = 0;
 while ($row = mysqli_fetch_assoc($detalle)) {
-    $subtotal = (float) $row['cantidad'] * (float) $row['precio'];
-    $total += $subtotal;
-
-    $pdf->Cell(24, 8, utf8_decode($row['codigo']), 1, 0, 'C');
-    $pdf->Cell(70, 8, utf8_decode(substr($row['descripcion'], 0, 40)), 1, 0, 'L');
-    $pdf->Cell(18, 8, $row['cantidad'], 1, 0, 'C');
-    $pdf->Cell(28, 8, money_pdf($row['precio_original']), 1, 0, 'R');
-    $pdf->Cell(22, 8, money_pdf($row['precio']), 1, 0, 'R');
-    $pdf->Cell(24, 8, money_pdf($subtotal), 1, 1, 'R');
+    $items[] = $row;
+    $totalVenta += ((float) $row['cantidad']) * ((float) $row['precio']);
 }
 
-$abona = (float) $ventaData['abona'];
-$montoCc = isset($ventaData['monto_cc']) ? (float) $ventaData['monto_cc'] : (float) $ventaData['resto'];
-$saldoCc = isset($ventaData['saldo_cc_cliente']) ? (float) $ventaData['saldo_cc_cliente'] : 0;
+$totalVenta = round($totalVenta, 2);
+$totalCobrado = round((float) ($ventaData['abona'] ?? 0), 2);
+$totalCc = round(isset($ventaData['monto_cc']) ? (float) $ventaData['monto_cc'] : (float) ($ventaData['resto'] ?? 0), 2);
+$columnas = array(14, 83, 35, 28, 26);
+$rowHeight = 6.6;
+$minRowsLastPage = 10;
+$maxRowsLastPage = 18;
+$maxRowsRegularPage = 24;
+$chunks = array();
+$totalItems = count($items);
 
-$pdf->Ln(8);
-$pdf->SetX(118);
-$pdf->SetFont('Arial', 'B', 10);
-$pdf->Cell(38, 8, 'Total', 0, 0, 'R');
-$pdf->Cell(30, 8, money_pdf($total), 0, 1, 'R');
-$pdf->SetX(118);
-$pdf->Cell(38, 8, 'Abona ahora', 0, 0, 'R');
-$pdf->SetFont('Arial', '', 10);
-$pdf->Cell(30, 8, money_pdf($abona), 0, 1, 'R');
-$pdf->SetX(118);
-$pdf->SetFont('Arial', 'B', 10);
-$pdf->Cell(38, 8, 'Carga a CC', 0, 0, 'R');
-$pdf->SetFont('Arial', '', 10);
-$pdf->Cell(30, 8, money_pdf($montoCc), 0, 1, 'R');
-
-if ($montoCc > 0) {
-    $pdf->SetX(108);
-    $pdf->SetFont('Arial', 'B', 10);
-    $pdf->Cell(48, 8, 'Saldo CC cliente', 0, 0, 'R');
-    $pdf->SetFont('Arial', '', 10);
-    $pdf->Cell(30, 8, money_pdf($saldoCc), 0, 1, 'R');
+if ($totalItems <= $maxRowsLastPage) {
+    $chunks[] = $items;
+} else {
+    $itemsForRegularPages = array_slice($items, 0, $totalItems - $maxRowsLastPage);
+    if (!empty($itemsForRegularPages)) {
+        $chunks = array_chunk($itemsForRegularPages, $maxRowsRegularPage);
+    }
+    $chunks[] = array_slice($items, $totalItems - $maxRowsLastPage);
 }
 
-$pdf->SetY(-28);
-$pdf->SetFont('Arial', 'I', 8);
-$pdf->SetTextColor(100, 116, 139);
-$pdf->Cell(0, 5, utf8_decode('Documento generado por el sistema mayorista de armazones.'), 0, 1, 'C');
-$pdf->Cell(0, 5, utf8_decode('Conserve este comprobante para el seguimiento de pagos y cuenta corriente.'), 0, 1, 'C');
+if (empty($chunks)) {
+    $chunks[] = array();
+}
+
+foreach ($chunks as $pageIndex => $pageItems) {
+    if ($pageIndex > 0) {
+        $pdf->AddPage();
+    }
+
+    $tableHeaderY = remito_dibujar_header($pdf, $brandLogoPath, $ventaData);
+    remito_dibujar_tabla_header($pdf, $tableHeaderY, $columnas);
+    $y = $tableHeaderY + 8;
+
+    foreach ($pageItems as $item) {
+        remito_dibujar_fila($pdf, $y, $columnas, $rowHeight, $item);
+        $y += $rowHeight;
+    }
+
+    $isLastPage = $pageIndex === (count($chunks) - 1);
+    if ($isLastPage) {
+        $rowsToRender = max($minRowsLastPage, count($pageItems));
+        $faltantes = $rowsToRender - count($pageItems);
+        for ($i = 0; $i < $faltantes; $i++) {
+            remito_dibujar_fila($pdf, $y, $columnas, $rowHeight, null);
+            $y += $rowHeight;
+        }
+
+        $summaryY = $y + 6;
+        $pdf->SetFont('Arial', 'B', 10);
+        $pdf->SetTextColor(20, 20, 20);
+        $pdf->SetXY(116, $summaryY);
+        $pdf->Cell(42, 6, 'Total venta', 0, 0, 'R');
+        $pdf->Cell(40, 6, money_pdf($totalVenta), 0, 1, 'R');
+        $pdf->SetXY(116, $summaryY + 7);
+        $pdf->Cell(42, 6, 'Total cobrado', 0, 0, 'R');
+        $pdf->Cell(40, 6, money_pdf($totalCobrado), 0, 1, 'R');
+        $pdf->SetXY(108, $summaryY + 14);
+        $pdf->Cell(50, 6, 'Total a cobrar (CC)', 0, 0, 'R');
+        $pdf->Cell(40, 6, money_pdf($totalCc), 0, 1, 'R');
+
+        $footerTopY = $pdf->GetPageHeight() - $pdf->getFooterHeight();
+        $aviso = utf8_decode('Este documento no es valido como factura.');
+        $avisoWidth = $pdf->GetStringWidth($aviso);
+        $pdf->SetFont('Arial', 'I', 8.5);
+        $pdf->SetTextColor(150, 156, 167);
+        $pdf->Text(($pdf->GetPageWidth() - $avisoWidth) / 2, $footerTopY - 10, $aviso);
+    }
+}
 
 $pdf->Output('I', 'venta-' . $idVenta . '.pdf');

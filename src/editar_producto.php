@@ -19,8 +19,13 @@ if ($idProducto <= 0) {
 
 $hasMayorista = mayorista_column_exists($conexion, 'producto', 'precio_mayorista');
 $hasTipo = mayorista_column_exists($conexion, 'producto', 'tipo');
+$hasModelo = mayorista_column_exists($conexion, 'producto', 'modelo');
+$hasColor = mayorista_column_exists($conexion, 'producto', 'color');
+$hasTipoMaterial = mayorista_column_exists($conexion, 'producto', 'tipo_material');
 $hasPrecioBruto = mayorista_column_exists($conexion, 'producto', 'precio_bruto');
 $hasCosto = mayorista_column_exists($conexion, 'producto', 'costo');
+$tiposProducto = mayorista_tipos_producto();
+$tiposMaterial = mayorista_tipos_material_producto();
 
 $query = mysqli_query($conexion, "SELECT * FROM producto WHERE codproducto = $idProducto LIMIT 1");
 $producto = $query ? mysqli_fetch_assoc($query) : null;
@@ -34,41 +39,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $codigo = mysqli_real_escape_string($conexion, trim($_POST['codigo'] ?? ''));
     $descripcion = mysqli_real_escape_string($conexion, trim($_POST['producto'] ?? ''));
     $marca = mysqli_real_escape_string($conexion, trim($_POST['marca'] ?? ''));
+    $modelo = mysqli_real_escape_string($conexion, trim($_POST['modelo'] ?? ''));
+    $color = mysqli_real_escape_string($conexion, trim($_POST['color'] ?? ''));
+    $tipoMaterial = trim($_POST['tipo_material'] ?? '');
     $precio = (float) ($_POST['precio'] ?? 0);
     $precioMayorista = (float) ($_POST['precio_mayorista'] ?? $precio);
     $stock = (int) ($_POST['cantidad'] ?? 0);
-    $tipo = ($_POST['tipo'] ?? 'armazon') === 'accesorio' ? 'accesorio' : 'armazon';
+    $tipo = trim($_POST['tipo'] ?? 'receta');
     $precioBruto = (float) ($_POST['precio_bruto'] ?? 0);
     $costo = isset($_POST['costo']) ? 1 : 0;
 
-    $updates = array(
-        "codigo = '$codigo'",
-        "descripcion = '$descripcion'",
-        "marca = '$marca'",
-        "precio = $precio",
-        "existencia = $stock"
-    );
-
-    if ($hasMayorista) {
-        $updates[] = "precio_mayorista = $precioMayorista";
+    if (!in_array($tipo, $tiposProducto, true)) {
+        $tipo = 'receta';
     }
-    if ($hasTipo) {
-        $updates[] = "tipo = '$tipo'";
-    }
-    if ($hasPrecioBruto) {
-        $updates[] = "precio_bruto = $precioBruto";
-    }
-    if ($hasCosto) {
-        $updates[] = "costo = $costo";
+    if (!in_array($tipoMaterial, $tiposMaterial, true)) {
+        $tipoMaterial = '';
     }
 
-    $update = mysqli_query($conexion, "UPDATE producto SET " . implode(', ', $updates) . " WHERE codproducto = $idProducto");
-    if ($update) {
-        $alert = '<div class="alert alert-success">Producto actualizado correctamente.</div>';
-        $query = mysqli_query($conexion, "SELECT * FROM producto WHERE codproducto = $idProducto LIMIT 1");
-        $producto = mysqli_fetch_assoc($query);
+    if (
+        $codigo === '' || $descripcion === '' || $marca === '' || $precio < 0 || $stock < 0
+        || ($hasModelo && $modelo === '')
+        || ($hasColor && $color === '')
+        || ($hasTipoMaterial && $tipoMaterial === '')
+    ) {
+        $alert = '<div class="alert alert-warning">Completa codigo, descripcion, marca, modelo, color, material, precio y stock.</div>';
     } else {
-        $alert = '<div class="alert alert-danger">No se pudo actualizar el producto.</div>';
+        $updates = array(
+            "codigo = '$codigo'",
+            "descripcion = '$descripcion'",
+            "marca = '$marca'",
+            "precio = $precio",
+            "existencia = $stock"
+        );
+
+        if ($hasModelo) {
+            $updates[] = "modelo = '$modelo'";
+        }
+        if ($hasColor) {
+            $updates[] = "color = '$color'";
+        }
+        if ($hasTipoMaterial) {
+            $updates[] = "tipo_material = " . ($tipoMaterial === '' ? 'NULL' : "'" . mysqli_real_escape_string($conexion, $tipoMaterial) . "'");
+        }
+
+        if ($hasMayorista) {
+            $updates[] = "precio_mayorista = $precioMayorista";
+        }
+        if ($hasTipo) {
+            $updates[] = "tipo = '$tipo'";
+        }
+        if ($hasPrecioBruto) {
+            $updates[] = "precio_bruto = $precioBruto";
+        }
+        if ($hasCosto) {
+            $updates[] = "costo = $costo";
+        }
+
+        $update = mysqli_query($conexion, "UPDATE producto SET " . implode(', ', $updates) . " WHERE codproducto = $idProducto");
+        if ($update) {
+            $alert = '<div class="alert alert-success">Producto actualizado correctamente.</div>';
+            $query = mysqli_query($conexion, "SELECT * FROM producto WHERE codproducto = $idProducto LIMIT 1");
+            $producto = mysqli_fetch_assoc($query);
+        } else {
+            $alert = '<div class="alert alert-danger">No se pudo actualizar el producto.</div>';
+        }
     }
 }
 
@@ -94,12 +128,40 @@ include_once "includes/header.php";
                             <label>Marca</label>
                             <input type="text" name="marca" class="form-control" value="<?php echo htmlspecialchars($producto['marca']); ?>" required>
                         </div>
+                        <?php if ($hasModelo) { ?>
+                            <div class="form-group col-md-4">
+                                <label>Modelo</label>
+                                <input type="text" name="modelo" class="form-control" value="<?php echo htmlspecialchars($producto['modelo'] ?? ''); ?>" required>
+                            </div>
+                        <?php } ?>
+                        <?php if ($hasColor) { ?>
+                            <div class="form-group col-md-4">
+                                <label>Color</label>
+                                <input type="text" name="color" class="form-control" value="<?php echo htmlspecialchars($producto['color'] ?? ''); ?>" required>
+                            </div>
+                        <?php } ?>
+                        <?php if ($hasTipoMaterial) { ?>
+                            <div class="form-group col-md-4">
+                                <label>Material</label>
+                                <select name="tipo_material" class="form-control" required>
+                                    <option value="">Seleccionar</option>
+                                    <?php foreach ($tiposMaterial as $tipoMaterial) { ?>
+                                        <option value="<?php echo htmlspecialchars($tipoMaterial); ?>" <?php echo ($producto['tipo_material'] ?? '') === $tipoMaterial ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($tipoMaterial); ?>
+                                        </option>
+                                    <?php } ?>
+                                </select>
+                            </div>
+                        <?php } ?>
                         <?php if ($hasTipo) { ?>
                             <div class="form-group col-md-4">
                                 <label>Tipo</label>
                                 <select name="tipo" class="form-control">
-                                    <option value="armazon" <?php echo ($producto['tipo'] ?? 'armazon') === 'armazon' ? 'selected' : ''; ?>>Armazon</option>
-                                    <option value="accesorio" <?php echo ($producto['tipo'] ?? '') === 'accesorio' ? 'selected' : ''; ?>>Accesorio</option>
+                                    <?php foreach ($tiposProducto as $tipoProducto) { ?>
+                                        <option value="<?php echo htmlspecialchars($tipoProducto); ?>" <?php echo ($producto['tipo'] ?? 'receta') === $tipoProducto ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars(ucfirst(str_replace('-', ' ', $tipoProducto))); ?>
+                                        </option>
+                                    <?php } ?>
                                 </select>
                             </div>
                         <?php } ?>

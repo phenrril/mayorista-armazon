@@ -132,6 +132,137 @@ function mayorista_marcar_reset_sistema_ejecutado($conexion)
     return mysqli_query($conexion, $sql) !== false;
 }
 
+function mayorista_generar_token_migracion_remito()
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return '';
+    }
+
+    if (empty($_SESSION['migracion_remito_token']) || !is_string($_SESSION['migracion_remito_token'])) {
+        $_SESSION['migracion_remito_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['migracion_remito_token'];
+}
+
+function mayorista_validar_token_migracion_remito($token)
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['migracion_remito_token'])) {
+        return false;
+    }
+
+    return hash_equals($_SESSION['migracion_remito_token'], (string) $token);
+}
+
+function mayorista_invalidar_token_migracion_remito()
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['migracion_remito_token']);
+    }
+}
+
+function mayorista_tipos_material_producto()
+{
+    return array('Acetato', 'Tr90', 'Metal', 'Inyeccion');
+}
+
+function mayorista_tipos_producto()
+{
+    return array('receta', 'sol', 'clip-on');
+}
+
+function mayorista_modos_despacho()
+{
+    return array(
+        'Andreani',
+        'Via cargo',
+        'Credifin',
+        'Correo argentino',
+        'Oca',
+        'Buspack',
+        'Send box',
+        'A convenir',
+    );
+}
+
+function mayorista_obtener_tipo_columna($conexion, $table, $column)
+{
+    $table = mysqli_real_escape_string($conexion, $table);
+    $column = mysqli_real_escape_string($conexion, $column);
+    $result = mysqli_query($conexion, "SHOW COLUMNS FROM `$table` LIKE '$column'");
+    if (!$result || mysqli_num_rows($result) === 0) {
+        return '';
+    }
+
+    $row = mysqli_fetch_assoc($result);
+    return strtolower((string) ($row['Type'] ?? ''));
+}
+
+function mayorista_schema_remito_productos_listo($conexion)
+{
+    $clienteListo =
+        mayorista_column_exists($conexion, 'cliente', 'optica')
+        && mayorista_column_exists($conexion, 'cliente', 'localidad')
+        && mayorista_column_exists($conexion, 'cliente', 'codigo_postal')
+        && mayorista_column_exists($conexion, 'cliente', 'provincia')
+        && mayorista_column_exists($conexion, 'cliente', 'cuit')
+        && mayorista_column_exists($conexion, 'cliente', 'condicion_iva')
+        && mayorista_column_exists($conexion, 'cliente', 'tipo_documento');
+
+    $productoListo =
+        mayorista_column_exists($conexion, 'producto', 'marca')
+        && mayorista_column_exists($conexion, 'producto', 'modelo')
+        && mayorista_column_exists($conexion, 'producto', 'color')
+        && mayorista_column_exists($conexion, 'producto', 'tipo_material');
+
+    $tipoColumna = mayorista_obtener_tipo_columna($conexion, 'producto', 'tipo');
+    $tipoProductoListo =
+        strpos($tipoColumna, 'receta') !== false
+        && strpos($tipoColumna, 'clip-on') !== false
+        && strpos($tipoColumna, 'sol') !== false;
+
+    $ventasListo = mayorista_column_exists($conexion, 'ventas', 'modo_despacho');
+
+    return $clienteListo && $productoListo && $tipoProductoListo && $ventasListo;
+}
+
+function mayorista_migracion_remito_productos_fue_ejecutada($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $query = mysqli_query(
+        $conexion,
+        "SELECT valor
+         FROM sistema_flags
+         WHERE clave = 'migracion_remito_productos_2026'
+         LIMIT 1"
+    );
+
+    if (!$query || mysqli_num_rows($query) === 0) {
+        return false;
+    }
+
+    $row = mysqli_fetch_assoc($query);
+    return isset($row['valor']) && $row['valor'] === '1';
+}
+
+function mayorista_marcar_migracion_remito_productos_ejecutada($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $sql = "INSERT INTO sistema_flags (clave, valor)
+        VALUES ('migracion_remito_productos_2026', '1')
+        ON DUPLICATE KEY UPDATE
+            valor = VALUES(valor),
+            updated_at = CURRENT_TIMESTAMP";
+
+    return mysqli_query($conexion, $sql) !== false;
+}
+
 function mayorista_requiere_permiso($conexion, $idUsuario, $permisos)
 {
     if (!mayorista_tiene_permiso($conexion, $idUsuario, $permisos)) {

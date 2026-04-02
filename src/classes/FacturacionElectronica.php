@@ -104,24 +104,342 @@ class FacturacionElectronica {
         
         return self::FACTURA_C; // Por defecto
     }
-    
+
     /**
-     * Generar factura electrónica para una venta
+     * Obtener descripción legible del tipo de comprobante.
      */
-    public function generarFactura($id_venta) {
-        // 1. Obtener datos de la venta
-        $query_venta = mysqli_query($this->conexion, 
+    public function obtenerDescripcionTipoComprobante($tipo_comprobante) {
+        switch ((int) $tipo_comprobante) {
+            case self::FACTURA_A:
+                return 'Factura A';
+            case self::FACTURA_B:
+                return 'Factura B';
+            case self::FACTURA_C:
+                return 'Factura C';
+            default:
+                return 'Comprobante';
+        }
+    }
+
+    /**
+     * Obtener tipos de comprobante habilitados según la condición IVA del emisor.
+     */
+    public function obtenerTiposComprobanteDisponibles() {
+        $emisor_cond = $this->config['iva_condition'] ?? '';
+
+        if (stripos($emisor_cond, 'Responsable Inscripto') !== false) {
+            return [
+                ['id' => self::FACTURA_A, 'codigo' => 'A', 'descripcion' => 'Factura A'],
+                ['id' => self::FACTURA_B, 'codigo' => 'B', 'descripcion' => 'Factura B'],
+            ];
+        }
+
+        return [
+            ['id' => self::FACTURA_C, 'codigo' => 'C', 'descripcion' => 'Factura C'],
+        ];
+    }
+
+    /**
+     * Obtener datos previos para mostrar o generar una factura
+     * permitiendo overrides temporales antes de emitir.
+     */
+    public function obtenerDatosPreviosFacturacion($id_venta, array $overrideData = []) {
+        $venta = $this->obtenerVentaConCliente($id_venta);
+        $overrideData = $this->normalizarDatosFacturacionManual($overrideData);
+
+        $tipo_predeterminado = $this->determinarTipoComprobante($venta['condicion_iva'] ?? 'Consumidor Final');
+        $tipo_comprobante = $this->resolverTipoComprobanteSolicitado($overrideData['tipo_factura'], $tipo_predeterminado);
+
+        $venta = $this->aplicarOverridesClienteFacturacion($venta, $overrideData);
+        $venta['condicion_iva'] = $this->inferirCondicionIvaSegunTipo($tipo_comprobante, $venta['condicion_iva'] ?? '');
+
+        $documento = $this->resolverDocumentoCliente($venta, $tipo_comprobante, $overrideData['tipo_documento']);
+
+        $nombre_cliente = trim((string) ($venta['nombre'] ?? ''));
+        if ($nombre_cliente === '') {
+            $nombre_cliente = 'CONSUMIDOR FINAL';
+        }
+
+        $fecha_emision = $this->resolverFechaEmision($overrideData['fecha_emision']);
+
+        return [
+            'venta' => $venta,
+            'fecha_emision' => $fecha_emision['db'],
+            'fecha_emision_afip' => $fecha_emision['afip'],
+            'fecha_emision_display' => $fecha_emision['display'],
+            'tipo_comprobante' => $tipo_comprobante,
+            'tipo_comprobante_desc' => $this->obtenerDescripcionTipoComprobante($tipo_comprobante),
+            'tipo_comprobante_predeterminado' => $tipo_predeterminado,
+            'tipo_comprobante_predeterminado_desc' => $this->obtenerDescripcionTipoComprobante($tipo_predeterminado),
+            'tipos_disponibles' => $this->obtenerTiposComprobanteDisponibles(),
+            'cliente_factura' => [
+                'nombre' => $nombre_cliente,
+                'dni' => preg_replace('/\D+/', '', (string) ($venta['dni'] ?? '')),
+                'cuit' => preg_replace('/\D+/', '', (string) ($venta['cuit'] ?? '')),
+                'condicion_iva' => $venta['condicion_iva'] ?? 'Consumidor Final',
+                'tipo_documento' => $documento['tipo_doc'],
+                'tipo_documento_desc' => $documento['doc_label'],
+                'numero_documento' => $documento['nro_doc'],
+                'numero_documento_display' => $documento['doc_numero_display'],
+                'tipo_documento_preferido' => $documento['tipo_documento_preferido'],
+            ],
+        ];
+    }
+
+    /**
+     * Obtener datos de venta y cliente asociados.
+     */
+    protected function obtenerVentaConCliente($id_venta) {
+        $query_venta = mysqli_query($this->conexion,
             "SELECT v.*, c.nombre, c.dni, c.cuit, c.telefono, c.direccion, c.condicion_iva, c.tipo_documento
              FROM ventas v 
              LEFT JOIN cliente c ON v.id_cliente = c.idcliente 
              WHERE v.id = " . intval($id_venta));
-        
+
         if (!$query_venta || mysqli_num_rows($query_venta) == 0) {
             throw new \Exception("Venta no encontrada");
         }
-        
-        $venta = mysqli_fetch_assoc($query_venta);
-        
+
+        return mysqli_fetch_assoc($query_venta);
+    }
+
+    /**
+     * Limpiar overrides enviados desde el popup.
+     */
+    protected function normalizarDatosFacturacionManual(array $overrideData) {
+        $data = [
+            'nombre_cliente' => trim((string) ($overrideData['nombre_cliente'] ?? '')),
+            'dni' => preg_replace('/\D+/', '', (string) ($overrideData['dni'] ?? '')),
+            'cuit' => preg_replace('/\D+/', '', (string) ($overrideData['cuit'] ?? '')),
+            'tipo_factura' => strtoupper(trim((string) ($overrideData['tipo_factura'] ?? ''))),
+            'tipo_documento' => strtoupper(trim((string) ($overrideData['tipo_documento'] ?? ''))),
+            'fecha_emision' => trim((string) ($overrideData['fecha_emision'] ?? '')),
+        ];
+
+        if (!in_array($data['tipo_factura'], ['A', 'B', 'C'], true)) {
+            $data['tipo_factura'] = '';
+        }
+
+        if (!in_array($data['tipo_documento'], ['DNI', 'CUIT', 'CF'], true)) {
+            $data['tipo_documento'] = '';
+        }
+
+        return $data;
+    }
+
+    /**
+     * Resolver la fecha de emisión efectiva.
+     */
+    protected function resolverFechaEmision($fecha_emision_manual = '') {
+        $fecha_emision_manual = trim((string) $fecha_emision_manual);
+
+        if ($fecha_emision_manual !== '') {
+            $fecha = \DateTime::createFromFormat('Y-m-d', $fecha_emision_manual);
+            $errores = \DateTime::getLastErrors();
+            if ($errores === false) {
+                $errores = ['warning_count' => 0, 'error_count' => 0];
+            }
+
+            if (!$fecha || $errores['warning_count'] > 0 || $errores['error_count'] > 0) {
+                throw new \Exception('La fecha de emisión ingresada no es válida');
+            }
+        } else {
+            $fecha = new \DateTime('today');
+        }
+
+        return [
+            'db' => $fecha->format('Y-m-d'),
+            'afip' => $fecha->format('Ymd'),
+            'display' => $fecha->format('d/m/Y'),
+        ];
+    }
+
+    /**
+     * Aplicar overrides temporales sobre los datos del cliente.
+     */
+    protected function aplicarOverridesClienteFacturacion(array $venta, array $overrideData) {
+        if ($overrideData['nombre_cliente'] !== '') {
+            $venta['nombre'] = $overrideData['nombre_cliente'];
+        }
+
+        if ($overrideData['dni'] !== '') {
+            $venta['dni'] = $overrideData['dni'];
+        }
+
+        if ($overrideData['cuit'] !== '') {
+            $venta['cuit'] = $overrideData['cuit'];
+        }
+
+        if ($overrideData['tipo_documento'] !== '') {
+            $venta['tipo_documento'] = $overrideData['tipo_documento'];
+        }
+
+        return $venta;
+    }
+
+    /**
+     * Resolver el tipo de factura final respetando lo habilitado para el emisor.
+     */
+    protected function resolverTipoComprobanteSolicitado($tipo_factura, $tipo_predeterminado) {
+        if ($tipo_factura === '') {
+            return (int) $tipo_predeterminado;
+        }
+
+        $mapa = [
+            'A' => self::FACTURA_A,
+            'B' => self::FACTURA_B,
+            'C' => self::FACTURA_C,
+        ];
+
+        $tipo_comprobante = $mapa[$tipo_factura] ?? (int) $tipo_predeterminado;
+        $habilitados = array_column($this->obtenerTiposComprobanteDisponibles(), 'id');
+
+        if (!in_array($tipo_comprobante, $habilitados, true)) {
+            throw new \Exception('El tipo de factura seleccionado no está habilitado para este emisor');
+        }
+
+        return $tipo_comprobante;
+    }
+
+    /**
+     * Inferir la condición IVA visible del cliente según el tipo de factura.
+     */
+    protected function inferirCondicionIvaSegunTipo($tipo_comprobante, $condicion_actual) {
+        $condicion_actual = trim((string) $condicion_actual);
+
+        switch ((int) $tipo_comprobante) {
+            case self::FACTURA_A:
+                if ($condicion_actual === '' || stripos($condicion_actual, 'Consumidor Final') !== false) {
+                    return 'IVA Responsable Inscripto';
+                }
+                return $condicion_actual;
+            case self::FACTURA_B:
+                return 'Consumidor Final';
+            case self::FACTURA_C:
+            default:
+                return $condicion_actual !== '' ? $condicion_actual : 'Consumidor Final';
+        }
+    }
+
+    /**
+     * Normalizar la preferencia de tipo de documento.
+     */
+    protected function normalizarTipoDocumentoPreferido($tipo_documento) {
+        if (is_numeric($tipo_documento)) {
+            switch ((int) $tipo_documento) {
+                case self::DOC_CUIT:
+                    return 'CUIT';
+                case self::DOC_DNI:
+                    return 'DNI';
+                case self::DOC_CONSUMIDOR_FINAL:
+                    return 'CF';
+            }
+        }
+
+        $tipo_documento = strtoupper(trim((string) $tipo_documento));
+
+        if (in_array($tipo_documento, ['CUIT', 'DNI', 'CF'], true)) {
+            return $tipo_documento;
+        }
+
+        return '';
+    }
+
+    /**
+     * Resolver qué documento informar en la factura.
+     */
+    protected function resolverDocumentoCliente(array $venta, $tipo_comprobante, $tipo_documento_manual = '') {
+        $dni = preg_replace('/\D+/', '', (string) ($venta['dni'] ?? ''));
+        $cuit = preg_replace('/\D+/', '', (string) ($venta['cuit'] ?? ''));
+        $tipo_documento_preferido = $this->normalizarTipoDocumentoPreferido(
+            $tipo_documento_manual !== '' ? $tipo_documento_manual : ($venta['tipo_documento'] ?? '')
+        );
+
+        if ((int) $tipo_comprobante === self::FACTURA_A) {
+            if ($cuit === '') {
+                throw new \Exception('Para emitir Factura A debés informar un CUIT');
+            }
+
+            return [
+                'tipo_doc' => self::DOC_CUIT,
+                'nro_doc' => (int) $cuit,
+                'doc_label' => 'CUIT',
+                'doc_numero_display' => $cuit,
+                'tipo_documento_preferido' => 'CUIT',
+            ];
+        }
+
+        if ($tipo_documento_preferido === 'CF') {
+            return [
+                'tipo_doc' => self::DOC_CONSUMIDOR_FINAL,
+                'nro_doc' => 0,
+                'doc_label' => 'Consumidor Final',
+                'doc_numero_display' => 'S/D',
+                'tipo_documento_preferido' => 'CF',
+            ];
+        }
+
+        if ($tipo_documento_preferido === 'CUIT' && $cuit !== '') {
+            return [
+                'tipo_doc' => self::DOC_CUIT,
+                'nro_doc' => (int) $cuit,
+                'doc_label' => 'CUIT',
+                'doc_numero_display' => $cuit,
+                'tipo_documento_preferido' => 'CUIT',
+            ];
+        }
+
+        if ($tipo_documento_preferido === 'DNI' && $dni !== '') {
+            return [
+                'tipo_doc' => self::DOC_DNI,
+                'nro_doc' => (int) $dni,
+                'doc_label' => 'DNI',
+                'doc_numero_display' => $dni,
+                'tipo_documento_preferido' => 'DNI',
+            ];
+        }
+
+        if ($dni !== '') {
+            return [
+                'tipo_doc' => self::DOC_DNI,
+                'nro_doc' => (int) $dni,
+                'doc_label' => 'DNI',
+                'doc_numero_display' => $dni,
+                'tipo_documento_preferido' => 'DNI',
+            ];
+        }
+
+        if ($cuit !== '') {
+            return [
+                'tipo_doc' => self::DOC_CUIT,
+                'nro_doc' => (int) $cuit,
+                'doc_label' => 'CUIT',
+                'doc_numero_display' => $cuit,
+                'tipo_documento_preferido' => 'CUIT',
+            ];
+        }
+
+        return [
+            'tipo_doc' => self::DOC_CONSUMIDOR_FINAL,
+            'nro_doc' => 0,
+            'doc_label' => 'Consumidor Final',
+            'doc_numero_display' => 'S/D',
+            'tipo_documento_preferido' => 'CF',
+        ];
+    }
+    
+    /**
+     * Generar factura electrónica para una venta
+     */
+    public function generarFactura($id_venta, array $overrideData = []) {
+        // 1. Obtener datos efectivos de la venta y del cliente
+        $datos_facturacion = $this->obtenerDatosPreviosFacturacion($id_venta, $overrideData);
+        $venta = $datos_facturacion['venta'];
+        $tipo_comprobante = $datos_facturacion['tipo_comprobante'];
+        $cliente_factura = $datos_facturacion['cliente_factura'];
+        $fecha_emision_db = $datos_facturacion['fecha_emision'];
+        $fecha_emision_afip = $datos_facturacion['fecha_emision_afip'];
+
         // 2. Obtener detalle de la venta
         $query_detalle = mysqli_query($this->conexion,
             "SELECT dv.*, p.descripcion, p.codigo 
@@ -137,17 +455,14 @@ class FacturacionElectronica {
         if (empty($items)) {
             throw new \Exception("No se encontraron items en la venta");
         }
-        
-        // 3. Determinar tipo de comprobante
-        $tipo_comprobante = $this->determinarTipoComprobante($venta['condicion_iva'] ?? 'Consumidor Final');
-        
-        // 4. Obtener próximo número de comprobante
+
+        // 3. Obtener próximo número de comprobante
         $punto_venta = $this->config['punto_venta'];
         $proximo_numero = $this->obtenerProximoNumero($tipo_comprobante, $punto_venta);
-        
-        // 5. Preparar datos del comprobante
-        $fecha_emision = date('Ymd'); // Formato: YYYYMMDD
-        
+
+        // 4. Preparar datos del comprobante
+        $fecha_emision = $fecha_emision_afip; // Formato: YYYYMMDD
+
         // Calcular totales según tipo de factura
         $total = floatval($venta['total']);
         $neto_gravado = 0;
@@ -163,22 +478,12 @@ class FacturacionElectronica {
             $neto_gravado = $total;
             $iva_total = 0;
         }
-        
-        // 6. Determinar tipo y número de documento del cliente
-        $tipo_doc = self::DOC_DNI;
-        $nro_doc = preg_replace('/[^0-9]/', '', $venta['dni'] ?? '0');
-        
-        if (!empty($venta['cuit']) && $tipo_comprobante == self::FACTURA_A) {
-            $tipo_doc = self::DOC_CUIT;
-            $nro_doc = preg_replace('/[^0-9]/', '', $venta['cuit']);
-        }
-        
-        if (empty($nro_doc) || $nro_doc == '0') {
-            $tipo_doc = self::DOC_CONSUMIDOR_FINAL;
-            $nro_doc = 0;
-        }
-        
-        // 7. Crear array de datos para enviar a AFIP
+
+        // 5. Determinar tipo y número de documento del cliente
+        $tipo_doc = $cliente_factura['tipo_documento'];
+        $nro_doc = $cliente_factura['numero_documento'];
+
+        // 6. Crear array de datos para enviar a AFIP
         $comprobante_data = [
             'CantReg' => 1, // Cantidad de comprobantes a registrar
             'PtoVta' => $punto_venta,
@@ -197,9 +502,11 @@ class FacturacionElectronica {
             'ImpTrib' => 0, // Otros tributos
             'MonId' => 'PES', // Moneda: Pesos
             'MonCotiz' => 1, // Cotización
+            'cliente_factura' => $cliente_factura,
+            'fecha_emision' => $fecha_emision_db,
         ];
-        
-        // 8. Agregar alícuotas de IVA (solo para Factura A y B)
+
+        // 7. Agregar alícuotas de IVA (solo para Factura A y B)
         if ($tipo_comprobante == self::FACTURA_A || $tipo_comprobante == self::FACTURA_B) {
             $comprobante_data['Iva'] = [
                 [
@@ -209,8 +516,8 @@ class FacturacionElectronica {
                 ]
             ];
         }
-        
-        // 9. Llamar al webservice de AFIP
+
+        // 8. Llamar al webservice de AFIP
         try {
             $this->inicializarSDK();
             
@@ -220,14 +527,14 @@ class FacturacionElectronica {
             
             // SIMULACIÓN DE RESPUESTA (debes reemplazar con la llamada real)
             $resultado = $this->simularRespuestaAFIP($comprobante_data);
-            
-            // 10. Guardar en base de datos
+
+            // 9. Guardar en base de datos
             $this->guardarFactura([
                 'id_venta' => $id_venta,
                 'tipo_comprobante' => $tipo_comprobante,
                 'punto_venta' => $punto_venta,
                 'numero_comprobante' => $proximo_numero,
-                'fecha_emision' => date('Y-m-d'),
+                'fecha_emision' => $fecha_emision_db,
                 'cae' => $resultado['CAE'],
                 'vencimiento_cae' => $resultado['CAEFchVto'],
                 'total' => $total,
@@ -255,7 +562,7 @@ class FacturacionElectronica {
                 'tipo_comprobante' => $tipo_comprobante,
                 'punto_venta' => $punto_venta,
                 'numero_comprobante' => $proximo_numero,
-                'fecha_emision' => date('Y-m-d'),
+                'fecha_emision' => $fecha_emision_db,
                 'total' => $total,
                 'iva_total' => $iva_total,
                 'neto_gravado' => $neto_gravado,
