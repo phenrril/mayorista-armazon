@@ -116,60 +116,64 @@ function remito_modelo_color($row)
     return implode(' / ', $partes);
 }
 
-function remito_campo_linea($pdf, $label, $value, $x, $y, $width)
+function remito_campo_box($pdf, $label, $value, $x, $y, $width, $height = 7.2)
 {
-    $pdf->SetFont('Arial', '', 7.7);
+    $pdf->SetFont('Arial', 'B', 7.7);
+    $pdf->SetTextColor(103, 112, 122);
     $pdf->SetXY($x, $y);
-    $pdf->Cell($width, 4, utf8_decode($label), 0, 1, 'L');
-    $pdf->SetDrawColor(120, 120, 120);
-    $pdf->SetLineWidth(0.2);
-    $pdf->Line($x, $y + 9.5, $x + $width, $y + 9.5);
-    $pdf->SetFont('Arial', '', 10);
-    $pdf->SetXY($x + 1, $y + 4.5);
-    $pdf->Cell($width - 2, 4.5, utf8_decode((string) $value), 0, 1, 'L');
+    $pdf->Cell($width, 3.6, utf8_decode($label), 0, 1, 'L');
+    $pdf->SetFillColor(238, 241, 245);
+    $pdf->SetDrawColor(238, 241, 245);
+    $pdf->Rect($x, $y + 5.3, $width, $height, 'F');
+    $pdf->SetTextColor(42, 49, 57);
+    $pdf->SetFont('Arial', 'B', 10.2);
+    $pdf->SetXY($x + 2, $y + 6.6);
+    $pdf->Cell($width - 4, $height - 1.8, utf8_decode((string) $value), 0, 1, 'L');
 }
 
 function remito_dibujar_header($pdf, $brandLogoPath, $ventaData)
 {
     $left = 12;
-    $rightColX = 116;
-    $top = 12;
+    $rightColX = 104;
+    $top = 14;
 
     if ($brandLogoPath && file_exists($brandLogoPath)) {
         $pdf->Image($brandLogoPath, 16, 12, 58, 0, 'PNG');
     }
 
-    remito_campo_linea(
-        $pdf,
-        'FECHA:',
-        date('d/m/Y', strtotime($ventaData['fecha'] ?? 'now')),
-        $rightColX,
-        $top + 1,
-        64
-    );
+    $pdf->SetFont('Arial', 'B', 22);
+    $pdf->SetTextColor(55, 63, 73);
+    $pdf->SetXY($rightColX, $top + 1);
+    $pdf->Cell(92, 10, 'NOTA DE PEDIDO', 0, 1, 'R');
+
+    $pdf->SetFont('Arial', 'B', 11);
+    $pdf->SetTextColor(55, 63, 73);
+    $pdf->SetXY($rightColX, $top + 13);
+    $pdf->Cell(92, 6, date('d/m/Y', strtotime($ventaData['fecha'] ?? 'now')), 0, 1, 'R');
 
     $fieldWidth = 76;
     $fieldGap = 8;
-    $leftY = 44;
-    $rowGap = 11.5;
-    remito_campo_linea($pdf, 'OPTICA:', remito_texto($ventaData['optica'] ?? ''), $left, $leftY, $fieldWidth);
-    remito_campo_linea($pdf, 'DIRECCION:', remito_texto($ventaData['direccion'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY, $fieldWidth);
-    remito_campo_linea($pdf, 'NOMBRE:', remito_texto($ventaData['cliente_nombre'] ?? ''), $left, $leftY + $rowGap, $fieldWidth);
-    remito_campo_linea($pdf, 'LOCALIDAD:', remito_texto($ventaData['localidad'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + $rowGap, $fieldWidth);
-    remito_campo_linea($pdf, 'CUIT:', remito_texto($ventaData['cuit'] ?? '', remito_texto($ventaData['dni'] ?? '')), $left, $leftY + ($rowGap * 2), $fieldWidth);
-    remito_campo_linea($pdf, 'CODIGO POSTAL:', remito_texto($ventaData['codigo_postal'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + ($rowGap * 2), $fieldWidth);
-    remito_campo_linea($pdf, 'TELEFONO:', remito_texto($ventaData['telefono'] ?? ''), $left, $leftY + ($rowGap * 3), $fieldWidth);
-    remito_campo_linea($pdf, 'PROVINCIA:', remito_texto($ventaData['provincia'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + ($rowGap * 3), $fieldWidth);
-    remito_campo_linea($pdf, 'MODO DESPACHO:', remito_texto($ventaData['modo_despacho'] ?? '', 'A convenir'), $left, $leftY + ($rowGap * 4), 160);
+    $leftY = 45;
+    $rowGap = 14;
+    remito_campo_box($pdf, 'OPTICA:', remito_texto($ventaData['optica'] ?? ''), $left, $leftY, $fieldWidth);
+    remito_campo_box($pdf, 'DIRECCION:', remito_texto($ventaData['direccion'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY, $fieldWidth);
+    remito_campo_box($pdf, 'NOMBRE:', remito_texto($ventaData['cliente_nombre'] ?? ''), $left, $leftY + $rowGap, $fieldWidth);
+    remito_campo_box($pdf, 'LOCALIDAD:', remito_texto($ventaData['localidad'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + $rowGap, $fieldWidth);
+    remito_campo_box($pdf, 'CUIT:', remito_texto($ventaData['cuit'] ?? '', remito_texto($ventaData['dni'] ?? '')), $left, $leftY + ($rowGap * 2), $fieldWidth);
+    remito_campo_box($pdf, 'CODIGO POSTAL:', remito_texto($ventaData['codigo_postal'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + ($rowGap * 2), $fieldWidth);
+    remito_campo_box($pdf, 'TELEFONO:', remito_texto($ventaData['telefono'] ?? ''), $left, $leftY + ($rowGap * 3), $fieldWidth);
+    remito_campo_box($pdf, 'PROVINCIA:', remito_texto($ventaData['provincia'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + ($rowGap * 3), $fieldWidth);
+    remito_campo_box($pdf, 'MODO DESPACHO:', remito_texto($ventaData['modo_despacho'] ?? '', 'A convenir'), $left, $leftY + ($rowGap * 4), 160);
 
-    return 111;
+    return 110;
 }
 
 function remito_dibujar_tabla_header($pdf, $y, $widths)
 {
-    $pdf->SetFillColor(226, 226, 226);
-    $pdf->SetTextColor(60, 60, 60);
-    $pdf->SetFont('Arial', '', 8.4);
+    $pdf->SetFillColor(45, 71, 82);
+    $pdf->SetDrawColor(211, 218, 224);
+    $pdf->SetTextColor(255, 255, 255);
+    $pdf->SetFont('Arial', 'B', 8.4);
     $pdf->SetXY(12, $y);
     $pdf->Cell($widths[0], 8, 'CANT.', 1, 0, 'C', true);
     $pdf->Cell($widths[1], 8, utf8_decode('MODELO Y COLOR'), 1, 0, 'C', true);
@@ -178,10 +182,12 @@ function remito_dibujar_tabla_header($pdf, $y, $widths)
     $pdf->Cell($widths[4], 8, 'IMPORTE', 1, 1, 'C', true);
 }
 
-function remito_dibujar_fila($pdf, $y, $widths, $rowHeight, $item = null)
+function remito_dibujar_fila($pdf, $y, $widths, $rowHeight, $fill, $item = null)
 {
     $pdf->SetFont('Arial', '', 8.7);
     $pdf->SetTextColor(30, 30, 30);
+    $pdf->SetDrawColor(223, 229, 234);
+    $pdf->SetFillColor($fill ? 242 : 255, $fill ? 245 : 255, $fill ? 248 : 255);
     $pdf->SetXY(12, $y);
 
     $cantidad = $item ? (string) $item['cantidad'] : '';
@@ -190,11 +196,11 @@ function remito_dibujar_fila($pdf, $y, $widths, $rowHeight, $item = null)
     $precio = $item ? money_pdf($item['precio']) : '';
     $importe = $item ? money_pdf(((float) $item['cantidad']) * ((float) $item['precio'])) : '';
 
-    $pdf->Cell($widths[0], $rowHeight, utf8_decode($cantidad), 1, 0, 'C');
-    $pdf->Cell($widths[1], $rowHeight, utf8_decode(substr($modeloColor, 0, 46)), 1, 0, 'L');
-    $pdf->Cell($widths[2], $rowHeight, utf8_decode(substr($descripcion, 0, 22)), 1, 0, 'L');
-    $pdf->Cell($widths[3], $rowHeight, utf8_decode($precio), 1, 0, 'R');
-    $pdf->Cell($widths[4], $rowHeight, utf8_decode($importe), 1, 1, 'R');
+    $pdf->Cell($widths[0], $rowHeight, utf8_decode($cantidad), 1, 0, 'C', true);
+    $pdf->Cell($widths[1], $rowHeight, utf8_decode(substr($modeloColor, 0, 46)), 1, 0, 'L', true);
+    $pdf->Cell($widths[2], $rowHeight, utf8_decode(substr($descripcion, 0, 22)), 1, 0, 'L', true);
+    $pdf->Cell($widths[3], $rowHeight, utf8_decode($precio), 1, 0, 'R', true);
+    $pdf->Cell($widths[4], $rowHeight, utf8_decode($importe), 1, 1, 'R', true);
 }
 
 $footerAssets = mayorista_pdf_footer_assets();
@@ -253,8 +259,8 @@ foreach ($chunks as $pageIndex => $pageItems) {
     remito_dibujar_tabla_header($pdf, $tableHeaderY, $columnas);
     $y = $tableHeaderY + 8;
 
-    foreach ($pageItems as $item) {
-        remito_dibujar_fila($pdf, $y, $columnas, $rowHeight, $item);
+    foreach ($pageItems as $itemIndex => $item) {
+        remito_dibujar_fila($pdf, $y, $columnas, $rowHeight, ($itemIndex % 2) === 1, $item);
         $y += $rowHeight;
     }
 
@@ -263,21 +269,28 @@ foreach ($chunks as $pageIndex => $pageItems) {
         $rowsToRender = max($minRowsLastPage, count($pageItems));
         $faltantes = $rowsToRender - count($pageItems);
         for ($i = 0; $i < $faltantes; $i++) {
-            remito_dibujar_fila($pdf, $y, $columnas, $rowHeight, null);
+            remito_dibujar_fila($pdf, $y, $columnas, $rowHeight, ((count($pageItems) + $i) % 2) === 1, null);
             $y += $rowHeight;
         }
 
         $summaryY = $y + 6;
-        $pdf->SetFont('Arial', 'B', 10);
-        $pdf->SetTextColor(20, 20, 20);
+        $pdf->SetTextColor(55, 63, 73);
+        $pdf->SetFont('Arial', '', 10.5);
         $pdf->SetXY(116, $summaryY);
         $pdf->Cell(42, 6, 'Total venta', 0, 0, 'R');
+        $pdf->SetFont('Arial', 'B', 10.5);
         $pdf->Cell(40, 6, money_pdf($totalVenta), 0, 1, 'R');
+
+        $pdf->SetFont('Arial', '', 10.5);
         $pdf->SetXY(116, $summaryY + 7);
         $pdf->Cell(42, 6, 'Total cobrado', 0, 0, 'R');
+        $pdf->SetFont('Arial', 'B', 10.5);
         $pdf->Cell(40, 6, money_pdf($totalCobrado), 0, 1, 'R');
+
+        $pdf->SetFont('Arial', '', 10.5);
         $pdf->SetXY(108, $summaryY + 14);
         $pdf->Cell(50, 6, 'Total a cobrar (CC)', 0, 0, 'R');
+        $pdf->SetFont('Arial', 'B', 10.5);
         $pdf->Cell(40, 6, money_pdf($totalCc), 0, 1, 'R');
 
         $footerTopY = $pdf->GetPageHeight() - $pdf->getFooterHeight();
