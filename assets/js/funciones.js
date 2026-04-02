@@ -281,11 +281,49 @@ function guardarNuevoCliente() {
     const nombre = $('#nombre_cliente').val().trim();
     const telefono = $('#telefono_cliente').val().trim();
     const direccion = $('#direccion_cliente').val().trim();
+    const opticaInput = $('#optica_cliente');
+    const localidadInput = $('#localidad_cliente');
+    const provinciaInput = $('#provincia_cliente');
+    const codigoPostalInput = $('#codigo_postal_cliente');
+    const optica = opticaInput.length ? opticaInput.val().trim() : '';
+    const localidad = localidadInput.length ? localidadInput.val().trim() : '';
+    const provincia = provinciaInput.length ? provinciaInput.val().trim() : '';
+    const codigoPostal = codigoPostalInput.length ? codigoPostalInput.val().trim() : '';
+    const tipoDocumento = $('#tipo_documento_cliente').val() || '96';
+    const dni = $('#dni_cliente').val().trim();
+    const cuit = $('#cuit_cliente').val().trim();
 
     if (!nombre || !telefono || !direccion) {
         showCenteredAlert({
             icon: 'warning',
             title: 'Completa nombre, teléfono y dirección',
+            timer: 2200
+        });
+        return;
+    }
+
+    if ((opticaInput.length && !optica) || (localidadInput.length && !localidad) || (provinciaInput.length && !provincia) || (codigoPostalInput.length && !codigoPostal)) {
+        showCenteredAlert({
+            icon: 'warning',
+            title: 'Completá óptica, localidad, provincia y código postal',
+            timer: 2400
+        });
+        return;
+    }
+
+    if (tipoDocumento === '80' && !cuit) {
+        showCenteredAlert({
+            icon: 'warning',
+            title: 'Para tipo CUIT, cargá el CUIT',
+            timer: 2200
+        });
+        return;
+    }
+
+    if (tipoDocumento === '96' && !dni) {
+        showCenteredAlert({
+            icon: 'warning',
+            title: 'Para tipo DNI, cargá el DNI',
             timer: 2200
         });
         return;
@@ -300,7 +338,14 @@ function guardarNuevoCliente() {
             nombre_cliente: nombre,
             telefono_cliente: telefono,
             direccion_cliente: direccion,
-            dni_cliente: $('#dni_cliente').val()
+            optica_cliente: optica,
+            localidad_cliente: localidad,
+            provincia_cliente: provincia,
+            codigo_postal_cliente: codigoPostal,
+            tipo_documento_cliente: tipoDocumento,
+            dni_cliente: dni,
+            cuit_cliente: cuit,
+            condicion_iva_cliente: $('#condicion_iva_cliente').val()
         },
         success: function (response) {
             if (!response.success) {
@@ -437,21 +482,95 @@ $(function () {
             $.getJSON('ajax.php', {
                 pro: request.term,
                 tipo_venta: $('#tipo_venta').val()
-            }, response);
+            }, function (items) {
+                const resultados = Array.isArray(items) ? items : [];
+                const termino = String(request.term || '').trim();
+
+                if (termino.length >= 3 && resultados.length === 0) {
+                    response([{
+                        id: 0,
+                        label: 'No hay coincidencias',
+                        value: termino,
+                        noMatch: true
+                    }]);
+                    return;
+                }
+
+                response(resultados);
+            });
+        },
+        appendTo: '.product-search-box',
+        classes: {
+            'ui-autocomplete': 'producto-autocomplete-menu'
+        },
+        position: {
+            my: 'left top+8',
+            at: 'left bottom',
+            collision: 'fit'
+        },
+        open: function () {
+            const instance = $(this).autocomplete('instance');
+            if (!instance || !instance.menu || !instance.menu.element) {
+                return;
+            }
+
+            instance.menu.element.outerWidth($(this).outerWidth());
+        },
+        focus: function (event, ui) {
+            if (ui.item && ui.item.noMatch) {
+                event.preventDefault();
+                return false;
+            }
         },
         select: function (event, ui) {
+            if (ui.item && ui.item.noMatch) {
+                event.preventDefault();
+                return false;
+            }
+
             $('#producto').val(ui.item.label);
             registrarDetalleManual(ui.item.id, 1, ui.item.precio);
             return false;
         }
     });
 
+    $('#producto').autocomplete('instance')._renderItem = function (ul, item) {
+        if (item.noMatch) {
+            return $('<li>')
+                .addClass('autocomplete-empty-state')
+                .append('<div class="ui-menu-item-wrapper">No hay coincidencias</div>')
+                .appendTo(ul);
+        }
+
+        return $('<li>')
+            .append(
+                $('<div class="ui-menu-item-wrapper">').append(
+                    $('<div class="autocomplete-client-name">').text(item.label)
+                )
+            )
+            .appendTo(ul);
+    };
+
     $('#tipo_venta').on('change', function () {
+        const tipoVenta = $(this).val();
         $('#producto').attr('placeholder',
-            $(this).val() === 'mayorista'
+            tipoVenta === 'mayorista'
                 ? 'Buscando con precio mayorista...'
                 : 'Buscando con precio minorista...'
         );
+
+        $.ajax({
+            url: 'ajax.php',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                actualizar_tipo_venta: true,
+                tipo_venta: tipoVenta
+            },
+            complete: function () {
+                listar();
+            }
+        });
     });
 
     $('#abona').on('input', function () {
@@ -486,6 +605,7 @@ $(function () {
                 abona: abona,
                 tipo_venta: $('#tipo_venta').val(),
                 metodo_pago: metodoPago,
+                modo_despacho: $('#modo_despacho').val(),
                 observacion: $('#observacion_venta').val()
             },
             success: function (response) {

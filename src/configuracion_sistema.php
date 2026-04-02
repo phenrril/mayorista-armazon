@@ -27,6 +27,8 @@ $data = mysqli_fetch_assoc($query);
 $reset_sistema_habilitado = mayorista_es_admin($id_user);
 $reset_sistema_ejecutado = $reset_sistema_habilitado ? mayorista_reset_sistema_fue_ejecutado($conexion) : false;
 $reset_sistema_token = $reset_sistema_habilitado ? mayorista_generar_token_reset_sistema() : '';
+$migracion_remito_pendiente = !mayorista_schema_remito_productos_listo($conexion);
+$migracion_remito_token = $migracion_remito_pendiente ? mayorista_generar_token_migracion_remito() : '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion'])) {
     $alert = '';
     if (empty($_POST['nombre']) || empty($_POST['telefono']) || empty($_POST['email']) || empty($_POST['direccion'])) {
@@ -94,6 +96,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion
         </div>
 
         <div class="col-md-6">
+            <?php if ($migracion_remito_pendiente) { ?>
+            <div class="card card-modern mb-4" id="cardMigracionRemito">
+                <div class="card-header-modern card-header-modern-warning">
+                    <i class="fas fa-database mr-2"></i> Migración Remito / Clientes / Productos
+                </div>
+                <div class="card-body card-body-modern">
+                    <p class="mb-3">
+                        <i class="fas fa-info-circle text-info mr-2"></i>
+                        Ejecutá una sola vez la migración para habilitar los nuevos campos de clientes, productos, ventas y el nuevo remito.
+                    </p>
+                    <div id="resultado-migracion-remito" class="mb-3"></div>
+                    <button
+                        type="button"
+                        class="btn btn-modern btn-modern-warning"
+                        id="btnMigracionRemito"
+                        data-endpoint="ejecutar_migracion_remito.php"
+                        data-token="<?php echo htmlspecialchars($migracion_remito_token, ENT_QUOTES, 'UTF-8'); ?>"
+                    >
+                        <i class="fas fa-play mr-2"></i> Ejecutar migración única
+                    </button>
+                    <small class="text-muted d-block mt-3">
+                        El botón se ocultará automáticamente cuando la migración quede aplicada correctamente.
+                    </small>
+                </div>
+            </div>
+            <?php } ?>
+
             <!-- Gestión de Productos -->
             <div class="card card-modern">
                 <div class="card-header-modern card-header-modern-warning">
@@ -274,6 +303,7 @@ window.addEventListener('load', function() {
     }
 
     initResetSistema();
+    initMigracionRemito();
     initInstalador();
 });
 
@@ -699,5 +729,99 @@ function initInstalador() {
             }
         });
     }
+}
+
+function initMigracionRemito() {
+    const $button = $('#btnMigracionRemito');
+    if ($button.length === 0) {
+        return;
+    }
+
+    $button.on('click', function() {
+        Swal.fire({
+            title: '¿Ejecutar migración?',
+            html: `
+                <div class="text-left">
+                    <p>Esto actualizará la base para habilitar:</p>
+                    <ul>
+                        <li>Nuevos campos de clientes</li>
+                        <li>Nuevos atributos de productos</li>
+                        <li>Modo de despacho en ventas</li>
+                        <li>Nuevo formato de remito</li>
+                    </ul>
+                    <p class="mb-0 text-warning"><strong>La acción es de un solo uso desde esta UI.</strong></p>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-play mr-2"></i>Ejecutar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#c48b2f',
+            cancelButtonColor: '#6c757d',
+            allowOutsideClick: false
+        }).then((result) => {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            ejecutarMigracionRemito($button);
+        });
+    });
+}
+
+function ejecutarMigracionRemito($button) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const htmlOriginal = '<i class="fas fa-play mr-2"></i> Ejecutar migración única';
+
+    $button.prop('disabled', true);
+    $button.html('<i class="fas fa-spinner fa-spin mr-2"></i> Ejecutando...');
+    $('#resultado-migracion-remito').html('');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            csrf_token: token
+        },
+        success: function(response) {
+            if (!response || !response.success) {
+                const message = response && response.message ? response.message : 'No se pudo ejecutar la migración.';
+                $('#resultado-migracion-remito').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                $button.prop('disabled', false).html(htmlOriginal);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Migración no completada',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            $('#resultado-migracion-remito').html('<div class="alert alert-success" role="alert">' + response.message + '</div>');
+            $('#cardMigracionRemito').slideUp(250);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Migración aplicada',
+                text: response.message,
+                confirmButtonColor: '#198754'
+            });
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Error al ejecutar la migración.';
+            $('#resultado-migracion-remito').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            $button.prop('disabled', false).html(htmlOriginal);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
 }
 </script>

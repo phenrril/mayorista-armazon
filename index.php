@@ -138,7 +138,9 @@ if (!empty($_SESSION['active'])) {
     <div class="login-container">
         <div class="login-card">
             <div class="logo-section">
-                <img src="assets/img/logo.png" alt="Logo" class="logo">
+                <div class="logo-frame">
+                    <img src="assets/img/logo-login.png" alt="Argen Optik" class="logo">
+                </div>
             </div>
             
             <div class="login-header">
