@@ -22,83 +22,24 @@ if (empty($existe) && $id_user != 1){
     exit();
 }
 include_once "includes/header.php";
-$query = mysqli_query($conexion, "SELECT * FROM configuracion");
-$data = mysqli_fetch_assoc($query);
-$reset_sistema_habilitado = mayorista_es_admin($id_user);
-$reset_sistema_ejecutado = $reset_sistema_habilitado ? mayorista_reset_sistema_fue_ejecutado($conexion) : false;
-$reset_sistema_token = $reset_sistema_habilitado ? mayorista_generar_token_reset_sistema() : '';
 $migracion_remito_pendiente = !mayorista_schema_remito_productos_listo($conexion);
 $migracion_remito_token = $migracion_remito_pendiente ? mayorista_generar_token_migracion_remito() : '';
 $migracion_finanzas_pendiente = !mayorista_schema_finanzas_operativas_listo($conexion);
 $migracion_finanzas_token = $migracion_finanzas_pendiente ? mayorista_generar_token_migracion_finanzas() : '';
 $importacion_productos_pendiente = !mayorista_importacion_productos_fue_ejecutada($conexion);
 $importacion_productos_token = $importacion_productos_pendiente ? mayorista_generar_token_importacion_productos() : '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion'])) {
-    $alert = '';
-    if (empty($_POST['nombre']) || empty($_POST['telefono']) || empty($_POST['email']) || empty($_POST['direccion'])) {
-        $alert = '<div class="alert alert-danger" role="alert">
-            Todo los campos son obligatorios
-        </div>';
-    }else{
-        $nombre = $_POST['nombre'];
-        $telefono = $_POST['telefono'];
-        $email = $_POST['email'];
-        $direccion = $_POST['direccion'];
-        $id = $_POST['id'];
-        $update = mysqli_query($conexion, "UPDATE configuracion SET nombre = '$nombre', telefono = '$telefono', email = '$email', direccion = '$direccion' WHERE id = $id");
-        if ($update) {
-            $alert = '<div class="alert alert-success" role="alert">
-            Datos modificado
-        </div>';
-        }
-    }
-}
+$importacion_clientes_pendiente = !mayorista_importacion_clientes_fue_ejecutada($conexion);
+$importacion_clientes_token = $importacion_clientes_pendiente ? mayorista_generar_token_importacion_clientes() : '';
 ?>
 
 <div class="config-container fade-in-container">
     <!-- Encabezado -->
     <div class="page-header-modern">
         <h2><i class="fas fa-cog mr-2"></i> Configuración del Sistema</h2>
-        <p class="mb-0 mt-2"><i class="fas fa-info-circle mr-1"></i> Gestión de datos de la empresa y configuración</p>
+        <p class="mb-0 mt-2"><i class="fas fa-info-circle mr-1"></i> Migraciones, importaciones iniciales y herramientas técnicas</p>
     </div>
 
     <div class="row">
-        <div class="col-md-6">
-            <!-- Formulario Datos Empresa -->
-            <div class="card card-modern">
-                <div class="card-header-modern">
-                    <i class="fas fa-building mr-2"></i> Datos de la Empresa
-                </div>
-                <div class="card-body card-body-modern">
-                    <form action="" method="post">
-                        <div class="form-group">
-                            <label><i class="fas fa-building mr-2 text-primary"></i> Nombre *</label>
-                            <input type="hidden" name="id" value="<?php echo $data['id'] ?>">
-                            <input type="text" name="nombre" class="form-control form-control-modern" value="<?php echo htmlspecialchars($data['nombre']); ?>" placeholder="Nombre de la Empresa" required>
-                        </div>
-                        <div class="form-group">
-                            <label><i class="fas fa-phone mr-2 text-success"></i> Teléfono *</label>
-                            <input type="text" name="telefono" class="form-control form-control-modern" value="<?php echo htmlspecialchars($data['telefono']); ?>" placeholder="Teléfono de la Empresa" required>
-                        </div>
-                        <div class="form-group">
-                            <label><i class="fas fa-envelope mr-2 text-info"></i> Correo Electrónico *</label>
-                            <input type="email" name="email" class="form-control form-control-modern" value="<?php echo htmlspecialchars($data['email']); ?>" placeholder="Correo de la Empresa" required>
-                        </div>
-                        <div class="form-group">
-                            <label><i class="fas fa-map-marker-alt mr-2 text-warning"></i> Dirección *</label>
-                            <input type="text" name="direccion" class="form-control form-control-modern" value="<?php echo htmlspecialchars($data['direccion']); ?>" placeholder="Dirección de la Empresa" required>
-                        </div>
-                        <?php echo isset($alert) ? $alert : ''; ?>
-                        <div class="text-center">
-                            <button type="submit" name="guardar_configuracion" value="1" class="btn btn-modern btn-modern-primary">
-                                <i class="fas fa-save mr-2"></i> Guardar Cambios
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
         <div class="col-md-6">
             <?php if ($migracion_remito_pendiente) { ?>
             <div class="card card-modern mb-4" id="cardMigracionRemito">
@@ -189,77 +130,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion
                 </div>
             </div>
             <?php } ?>
+        </div>
 
-            <!-- Gestión de Productos -->
-            <div class="card card-modern">
+        <div class="col-md-6">
+            <?php if ($importacion_clientes_pendiente) { ?>
+            <div class="card card-modern mb-4" id="cardImportacionClientes">
                 <div class="card-header-modern card-header-modern-warning">
-                    <i class="fas fa-box-open mr-2"></i> Gestión de Productos
+                    <i class="fas fa-address-book mr-2"></i> Importación inicial de clientes
                 </div>
                 <div class="card-body card-body-modern">
-                    <p class="mb-4"><i class="fas fa-info-circle text-info mr-2"></i>Ocultar automáticamente todos los productos sin stock en la base de datos.</p>
-                    <div id="resultado-ocultar" class="mb-3"></div>
-                    <button type="button" class="btn btn-modern btn-modern-warning" id="btnOcultarProductos">
-                        <i class="fas fa-eye-slash mr-2"></i> Ocultar Productos Sin Stock
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <?php if ($reset_sistema_habilitado) { ?>
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card card-modern border border-danger">
-                <div class="card-header-modern bg-danger text-white">
-                    <i class="fas fa-exclamation-triangle mr-2"></i> Zona peligrosa
-                </div>
-                <div class="card-body card-body-modern">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <h5 class="text-danger mb-3">
-                                <i class="fas fa-radiation mr-2"></i> Reset definitivo del sistema
-                            </h5>
-                            <p class="mb-2">
-                                Esta acción elimina todos los datos operativos, recrea un único usuario administrador y deja el reset bloqueado para siempre.
-                            </p>
-                            <ul class="mb-3">
-                                <li>Borra clientes, productos, ventas, usuarios y movimientos operativos.</li>
-                                <li>Recrea únicamente el usuario <strong>admin</strong>.</li>
-                                <li>Exige escribir la frase exacta <code>ELIMINAR TODO</code>.</li>
-                            </ul>
-                            <?php if ($reset_sistema_ejecutado) { ?>
-                            <div class="alert alert-success mb-0" role="alert">
-                                <i class="fas fa-lock mr-2"></i> El reset ya fue ejecutado y quedó bloqueado permanentemente.
-                            </div>
-                            <?php } else { ?>
-                            <div class="alert alert-danger mb-0" role="alert">
-                                <i class="fas fa-shield-alt mr-2"></i> Disponible solo para el administrador principal (<code>idusuario = 1</code>) y protegido por validación de servidor.
-                            </div>
-                            <?php } ?>
-                        </div>
-                        <div class="col-md-4 text-center d-flex flex-column justify-content-center mt-3 mt-md-0">
-                            <button
-                                type="button"
-                                class="btn btn-lg btn-danger"
-                                id="btnResetSistema"
-                                data-endpoint="reset_sistema.php"
-                                data-token="<?php echo htmlspecialchars($reset_sistema_token, ENT_QUOTES, 'UTF-8'); ?>"
-                                <?php echo $reset_sistema_ejecutado ? 'disabled' : ''; ?>
-                            >
-                                <i class="fas fa-trash-alt mr-2"></i>
-                                <?php echo $reset_sistema_ejecutado ? 'Reset bloqueado' : 'Ejecutar reset único'; ?>
-                            </button>
-                            <small class="text-muted mt-3">
-                                Acción irreversible y de un solo uso.
-                            </small>
-                        </div>
+                    <p class="mb-3">
+                        <i class="fas fa-info-circle text-info mr-2"></i>
+                        Seleccioná la planilla XLSX de clientes para cargar la cartera una sola vez. Si el cliente ya existe, se actualizará y, si trae saldo inicial, se intentará registrar en cuenta corriente.
+                    </p>
+                    <div class="form-group">
+                        <label for="archivoImportacionClientes">Archivo XLSX</label>
+                        <input
+                            type="file"
+                            class="form-control-file"
+                            id="archivoImportacionClientes"
+                            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        >
                     </div>
-                    <div id="resultado-reset-sistema" class="mt-4"></div>
+                    <div id="resultado-importacion-clientes" class="mb-3"></div>
+                    <button
+                        type="button"
+                        class="btn btn-modern btn-modern-warning"
+                        id="btnImportacionClientes"
+                        data-endpoint="importar_clientes_xlsx.php"
+                        data-token="<?php echo htmlspecialchars($importacion_clientes_token, ENT_QUOTES, 'UTF-8'); ?>"
+                    >
+                        <i class="fas fa-upload mr-2"></i> Importar clientes una sola vez
+                    </button>
+                    <small class="text-muted d-block mt-3">
+                        Antes de ejecutar se mostrará una previsualización y se pedirá escribir <code>IMPORTAR CLIENTES</code>.
+                    </small>
                 </div>
             </div>
+            <?php } ?>
         </div>
     </div>
-    <?php } ?>
 
     <?php 
     // Verificar si el sistema de facturación ya está instalado
@@ -369,124 +279,12 @@ window.addEventListener('load', function() {
         console.log('✅ SweetAlert2 cargado');
     }
 
-    initResetSistema();
     initMigracionRemito();
     initMigracionFinanzas();
     initImportacionProductos();
+    initImportacionClientes();
     initInstalador();
 });
-
-function initResetSistema() {
-    const $button = $('#btnResetSistema');
-    if ($button.length === 0) {
-        return;
-    }
-
-    $button.on('click', function() {
-        Swal.fire({
-            title: 'Reset definitivo del sistema',
-            html: `
-                <div class="text-left">
-                    <p>Esta acción va a borrar los datos operativos y dejar un único usuario administrador.</p>
-                    <p class="text-danger mb-2"><strong>No se puede deshacer.</strong></p>
-                    <p class="mb-0">Para continuar escribí exactamente: <code>ELIMINAR TODO</code></p>
-                </div>
-            `,
-            icon: 'warning',
-            input: 'text',
-            inputLabel: 'Frase de confirmación',
-            inputPlaceholder: 'ELIMINAR TODO',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: '<i class="fas fa-trash-alt mr-2"></i>Ejecutar reset',
-            cancelButtonText: 'Cancelar',
-            allowOutsideClick: false,
-            inputValidator: function(value) {
-                if (value !== 'ELIMINAR TODO') {
-                    return 'La frase no coincide exactamente.';
-                }
-            }
-        }).then((result) => {
-            if (!result.isConfirmed) {
-                return;
-            }
-
-            ejecutarResetSistema($button, result.value);
-        });
-    });
-}
-
-function ejecutarResetSistema($button, confirmacion) {
-    const endpoint = $button.data('endpoint');
-    const token = $button.data('token');
-    const textoOriginal = '<i class="fas fa-trash-alt mr-2"></i>Ejecutar reset único';
-
-    $button.prop('disabled', true);
-    $button.html('<i class="fas fa-spinner fa-spin mr-2"></i>Ejecutando...');
-    $('#resultado-reset-sistema').html('');
-
-    $.ajax({
-        url: endpoint,
-        type: 'POST',
-        dataType: 'json',
-        timeout: 180000,
-        data: {
-            confirmacion: confirmacion,
-            csrf_token: token
-        },
-        success: function(response) {
-            const success = !!(response && response.success);
-
-            if (!success) {
-                const message = response && response.message ? response.message : 'No se pudo ejecutar el reset.';
-                $('#resultado-reset-sistema').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
-                $button.prop('disabled', !!(response && response.blocked));
-                $button.html(response && response.blocked ? '<i class="fas fa-lock mr-2"></i>Reset bloqueado' : textoOriginal);
-
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Reset no ejecutado',
-                    text: message,
-                    confirmButtonColor: '#d33'
-                });
-                return;
-            }
-
-            $('#resultado-reset-sistema').html('<div class="alert alert-success" role="alert">' + response.message + '</div>');
-            $button.html('<i class="fas fa-lock mr-2"></i>Reset completado');
-
-            Swal.fire({
-                icon: 'success',
-                title: 'Reset completado',
-                text: response.message,
-                allowOutsideClick: false,
-                confirmButtonColor: '#198754'
-            }).then(() => {
-                window.location.href = response.redirect || '../';
-            });
-        },
-        error: function(jqXHR, textStatus) {
-            let message = 'Error al ejecutar el reset.';
-            if (textStatus === 'timeout') {
-                message = 'El reset tardó demasiado y no se pudo confirmar el resultado.';
-            } else if (jqXHR.responseJSON && jqXHR.responseJSON.message) {
-                message = jqXHR.responseJSON.message;
-            }
-
-            $('#resultado-reset-sistema').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
-            $button.prop('disabled', false);
-            $button.html(textoOriginal);
-
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: message,
-                confirmButtonColor: '#d33'
-            });
-        }
-    });
-}
 
 function initInstalador() {
     console.log('✅ Inicializando instalador');
@@ -505,57 +303,6 @@ function initInstalador() {
     } else {
         console.log('❌ Botón #btnInstalarFacturacion NO encontrado (puede estar oculto porque ya está instalado)');
     }
-    
-    // Ocultar productos sin stock
-    $('#btnOcultarProductos').click(function() {
-        // Deshabilitar el botón mientras se procesa
-        $(this).prop('disabled', true);
-        $(this).html('<i class="fas fa-spinner fa-spin"></i> Procesando...');
-        
-        // Limpiar resultado anterior
-        $('#resultado-ocultar').html('');
-        
-        // Hacer la petición AJAX
-        $.ajax({
-            url: 'ocultar_productos_sin_stock.php',
-            type: 'POST',
-            data: {},
-            dataType: 'json',
-            success: function(response) {
-                try {
-                    if (!response || response.success === false) {
-                        console.error('Error en respuesta de ocultar_productos_sin_stock:', response);
-                    } else {
-                        console.log('Éxito ocultar_productos_sin_stock:', response);
-                    }
-                } catch (e) {
-                    console.error('Excepción procesando respuesta:', e);
-                }
-                $('#resultado-ocultar').html(response.html);
-                $('#btnOcultarProductos').prop('disabled', false);
-                $('#btnOcultarProductos').html('<i class="fas fa-eye-slash"></i> Ocultar Productos Sin Stock');
-                
-                // Si fue exitoso, mostrar SweetAlert
-                if (response.success) {
-                    Swal.fire({
-                        position: 'center',
-                        toast: false,
-                        icon: 'success',
-                        title: 'Productos Ocultados',
-                        text: response.message,
-                        showConfirmButton: false,
-                        timer: 3000
-                    });
-                }
-            },
-            error: function(jqXHR, textStatus, errorThrown) {
-                console.error('AJAX error ocultar_productos_sin_stock:', { status: jqXHR.status, textStatus: textStatus, error: errorThrown, responseText: jqXHR.responseText });
-                $('#resultado-ocultar').html('<div class="alert alert-danger">Error al procesar la solicitud</div>');
-                $('#btnOcultarProductos').prop('disabled', false);
-                $('#btnOcultarProductos').html('<i class="fas fa-eye-slash"></i> Ocultar Productos Sin Stock');
-            }
-        });
-    });
     
     // =====================================================
     // INSTALACIÓN DE FACTURACIÓN ELECTRÓNICA
@@ -1049,6 +796,9 @@ function previsualizarImportacionProductos($button, file) {
                             <li>Insertar estimado: <strong>${preview.insertar_estimado || 0}</strong></li>
                             <li>Actualizar estimado: <strong>${preview.actualizar_estimado || 0}</strong></li>
                             <li>Omitidas: <strong>${preview.omitidos || 0}</strong></li>
+                            <li>Con saldo inicial: <strong>${preview.con_saldo_inicial || 0}</strong></li>
+                            <li>Movimientos CC estimados: <strong>${preview.movimientos_cc_estimados || 0}</strong></li>
+                            <li>Saldos omitidos por seguridad: <strong>${preview.saldos_omitidos || 0}</strong></li>
                         </ul>
                         <p class="mb-2 text-warning"><strong>Acción de una sola vez en esta base.</strong></p>
                         <p class="mb-0">Para continuar escribí exactamente: <code>IMPORTAR PRODUCTOS</code></p>
@@ -1141,6 +891,170 @@ function ejecutarImportacionProductos($button, file) {
                 ? xhr.responseJSON.message
                 : 'Error al ejecutar la importación.';
             $('#resultado-importacion-productos').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            $button.prop('disabled', false).html(textoOriginal);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
+}
+
+function initImportacionClientes() {
+    const $button = $('#btnImportacionClientes');
+    if ($button.length === 0) {
+        return;
+    }
+
+    $button.on('click', function() {
+        const fileInput = document.getElementById('archivoImportacionClientes');
+        const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+        if (!file) {
+            $('#resultado-importacion-clientes').html('<div class="alert alert-warning" role="alert">Seleccioná primero la planilla XLSX a importar.</div>');
+            return;
+        }
+
+        previsualizarImportacionClientes($button, file);
+    });
+}
+
+function previsualizarImportacionClientes($button, file) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const formData = new FormData();
+    formData.append('csrf_token', token);
+    formData.append('archivo_clientes', file);
+    formData.append('preview_only', '1');
+
+    $('#resultado-importacion-clientes').html('<div class="alert alert-info" role="alert">Analizando planilla para generar la previsualización...</div>');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        data: formData,
+        dataType: 'json',
+        processData: false,
+        contentType: false,
+        timeout: 180000,
+        success: function(response) {
+            if (!response || !response.success || !response.preview) {
+                const message = response && response.message ? response.message : 'No se pudo generar la previsualización.';
+                $('#resultado-importacion-clientes').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Previsualización no disponible',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            const preview = response.preview;
+            Swal.fire({
+                title: 'Confirmar importación masiva',
+                html: `
+                    <div class="text-left">
+                        <p><strong>Archivo:</strong> ${response.label || file.name}</p>
+                        <ul>
+                            <li>Filas válidas: <strong>${preview.filas_validas || 0}</strong></li>
+                            <li>Insertar estimado: <strong>${preview.insertar_estimado || 0}</strong></li>
+                            <li>Actualizar estimado: <strong>${preview.actualizar_estimado || 0}</strong></li>
+                            <li>Omitidas: <strong>${preview.omitidos || 0}</strong></li>
+                        </ul>
+                        <p class="mb-2 text-warning"><strong>Acción de una sola vez en esta base.</strong></p>
+                        <p class="mb-0">Para continuar escribí exactamente: <code>IMPORTAR CLIENTES</code></p>
+                    </div>
+                `,
+                icon: 'warning',
+                input: 'text',
+                inputLabel: 'Frase de confirmación',
+                inputPlaceholder: 'IMPORTAR CLIENTES',
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-upload mr-2"></i>Importar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#c48b2f',
+                cancelButtonColor: '#6c757d',
+                allowOutsideClick: false,
+                inputValidator: function(value) {
+                    if (value !== 'IMPORTAR CLIENTES') {
+                        return 'La frase no coincide exactamente.';
+                    }
+                }
+            }).then((result) => {
+                if (!result.isConfirmed) {
+                    return;
+                }
+
+                ejecutarImportacionClientes($button, file);
+            });
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Error al generar la previsualización.';
+            $('#resultado-importacion-clientes').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
+}
+
+function ejecutarImportacionClientes($button, file) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const textoOriginal = '<i class="fas fa-upload mr-2"></i> Importar clientes una sola vez';
+    const formData = new FormData();
+    formData.append('csrf_token', token);
+    formData.append('archivo_clientes', file);
+
+    $button.prop('disabled', true);
+    $button.html('<i class="fas fa-spinner fa-spin mr-2"></i> Importando...');
+    $('#resultado-importacion-clientes').html('');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        data: formData,
+        dataType: 'json',
+        processData: false,
+        contentType: false,
+        timeout: 180000,
+        success: function(response) {
+            if (!response || !response.success) {
+                const message = response && response.message ? response.message : 'No se pudo completar la importación.';
+                $('#resultado-importacion-clientes').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                $button.prop('disabled', false).html(textoOriginal);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Importación no completada',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            $('#resultado-importacion-clientes').html('<div class="alert alert-success" role="alert">' + response.message + '</div>');
+            $('#cardImportacionClientes').slideUp(250);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Importación aplicada',
+                text: response.message,
+                confirmButtonColor: '#198754'
+            });
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Error al ejecutar la importación.';
+            $('#resultado-importacion-clientes').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
             $button.prop('disabled', false).html(textoOriginal);
             Swal.fire({
                 icon: 'error',

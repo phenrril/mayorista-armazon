@@ -500,15 +500,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             return;
         }
-
-        const buscador = event.target.closest('.producto-buscador');
-        if (buscador) {
-            const fila = buscador.closest('tr');
-            const hidden = fila ? fila.querySelector('.producto-id-hidden') : null;
-            if (hidden) {
-                hidden.value = '';
-            }
-        }
     });
 
     document.addEventListener('change', function(event) {
@@ -518,10 +509,41 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.addEventListener('input', function(event) {
+        if (event.target.matches('.producto-buscador')) {
+            const fila = event.target.closest('tr');
+            const hidden = fila ? fila.querySelector('.producto-id-hidden') : null;
+            if (hidden) {
+                hidden.value = '';
+            }
+            return;
+        }
+
         if (event.target.matches('.cantidad-input, .precio-input')) {
             recalcularTotalesEdicion();
         }
     });
+
+    const formEditarVenta = document.getElementById('formEditarVenta');
+    if (formEditarVenta) {
+        formEditarVenta.addEventListener('submit', function(event) {
+            let filaInvalida = false;
+            document.querySelectorAll('#tablaDetalleEditable tbody tr').forEach(function(row) {
+                const buscador = row.querySelector('.producto-buscador');
+                const hidden = row.querySelector('.producto-id-hidden');
+                const texto = buscador ? String(buscador.value || '').trim() : '';
+                const idProducto = hidden ? parseInt(hidden.value || '0', 10) : 0;
+
+                if (texto !== '' && idProducto <= 0) {
+                    filaInvalida = true;
+                }
+            });
+
+            if (filaInvalida) {
+                event.preventDefault();
+                alert('Seleccioná un producto válido desde la búsqueda en todas las filas antes de guardar.');
+            }
+        });
+    }
 
     document.querySelectorAll('.producto-buscador').forEach(inicializarBuscadorProducto);
     recalcularTotalesEdicion();

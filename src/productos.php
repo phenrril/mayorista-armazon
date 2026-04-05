@@ -107,7 +107,8 @@ if (!empty($_POST['action']) && $_POST['action'] === 'crear_producto') {
 if (!empty($_POST['action']) && $_POST['action'] === 'ajuste_masivo') {
     $objetivo = $_POST['objetivo_precio'] ?? 'minorista';
     $porcentaje = (float) ($_POST['porcentaje'] ?? 0);
-    $precioFijo = isset($_POST['precio_fijo']) ? (float) $_POST['precio_fijo'] : null;
+    $precioFijoRaw = trim((string) ($_POST['precio_fijo'] ?? ''));
+    $precioFijo = $precioFijoRaw !== '' ? (float) $precioFijoRaw : null;
     $filtroMarca = mysqli_real_escape_string($conexion, trim($_POST['filtro_marca'] ?? ''));
     $filtroModelo = mysqli_real_escape_string($conexion, trim($_POST['filtro_modelo'] ?? ''));
     $filtroMaterial = trim($_POST['filtro_material'] ?? '');
@@ -626,5 +627,24 @@ include_once "includes/header.php";
         </div>
     </div>
 </div>
+
+<script>
+window.addEventListener('load', function () {
+    const $ = window.jQuery;
+    if (!$ || !$.fn.DataTable) {
+        return;
+    }
+
+    const $table = $('#tbl');
+    if ($table.length && !$.fn.DataTable.isDataTable($table)) {
+        $table.DataTable({
+            order: [[0, 'desc']],
+            columnDefs: [
+                { targets: -1, orderable: false }
+            ]
+        });
+    }
+});
+</script>
 
 <?php include_once "includes/footer.php"; ?>
