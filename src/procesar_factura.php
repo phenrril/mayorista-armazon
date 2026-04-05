@@ -30,6 +30,7 @@ register_shutdown_function(function() {
 require_once "../conexion.php";
 require_once "classes/FacturacionElectronica.php";
 require_once "classes/FacturacionElectronicaAfipSDK.php";
+require_once "includes/mayorista_helpers.php";
 
 if (!($conexion instanceof \mysqli)) {
     echo json_encode(['success' => false, 'message' => 'No se pudo conectar a la base de datos']);
@@ -49,6 +50,10 @@ if (!isset($_POST['id_venta']) || empty($_POST['id_venta'])) {
 }
 
 $id_venta = intval($_POST['id_venta']);
+if (mayorista_venta_tiene_factura_aprobada($conexion, $id_venta)) {
+    echo json_encode(['success' => false, 'message' => 'La venta ya tiene una factura aprobada y no puede volver a facturarse.']);
+    exit();
+}
 $override_data = [
     'nombre_cliente' => $_POST['nombre_cliente'] ?? '',
     'dni' => $_POST['dni'] ?? '',

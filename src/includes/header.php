@@ -78,3 +78,18 @@
         <div id="layoutSidenav_content">
             <main>
                 <div class="container-fluid mt-2">
+                    <?php
+                    $alertasFinancierasHeader = array();
+                    if (isset($conexion) && ($conexion instanceof mysqli) && function_exists('mayorista_obtener_alertas_financieras')) {
+                        $alertasFinancierasHeader = mayorista_obtener_alertas_financieras($conexion, 3);
+                    }
+                    if (!empty($alertasFinancierasHeader)) {
+                    ?>
+                    <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap" role="alert">
+                        <div>
+                            <strong>Recordatorios pendientes:</strong>
+                            Tenés <?php echo count($alertasFinancierasHeader); ?> compromiso<?php echo count($alertasFinancierasHeader) === 1 ? '' : 's'; ?> para revisar hoy.
+                        </div>
+                        <a class="btn btn-sm btn-outline-dark mt-2 mt-md-0" href="reporte.php#vencimientos-financieros">Ver vencimientos</a>
+                    </div>
+                    <?php } ?>

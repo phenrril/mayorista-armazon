@@ -1,88 +1,54 @@
-<?php 
+<?php
 require "../conexion.php";
+require_once "includes/mayorista_helpers.php";
 session_start();
+
+header('Content-Type: application/json; charset=utf-8');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(array('success' => false, 'message' => 'Metodo no permitido.'));
+    exit();
+}
+
+if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
+    http_response_code(403);
+    echo json_encode(array('success' => false, 'message' => 'Sesion no valida.'));
+    exit();
+}
+
 if (!($conexion instanceof mysqli)) {
-    exit;
-}
-$id = $_SESSION['idUser'];
-$valor = $_POST['valor'];
-if($_POST['valor'] == '0' || $_POST['valor'] == 'null'){
-    echo "
-    <script>
-    swal.fire
-    ({
-        position: 'center',
-        toast: false,
-        showConfirmButton: false,
-        title: 'Error',
-        text: 'El valor no puede ser 0',
-        icon: 'error'
-    }) 
-    </script>";
-    die();
-}
-$tipo = $_POST['tipo'];
-$descripcion = $_POST['descripcion'];
-$fecha = date("Y-m-d");
-$idcliente = 0;
-$idmetodo = 1;
-
-if($tipo == 'ingreso'){
-    $ingresos =  mysqli_query($conexion,"INSERT INTO ingresos (ingresos, descripcion, fecha, id_cliente, id_metodo) VALUES ('$valor', '$descripcion', '$fecha', '$idcliente', '$idmetodo' )");
-}elseif($tipo == 'egreso'){
-    $valor = -abs($valor);
-    $egresos =  mysqli_query($conexion,"INSERT INTO egresos (egresos, descripcion, fecha, id_cliente, id_metodo) VALUES ('$valor', '$descripcion', '$fecha', '$idcliente', '$idmetodo')");
+    http_response_code(500);
+    echo json_encode(array('success' => false, 'message' => 'No se pudo establecer conexion a la base de datos.'));
+    exit();
 }
 
-switch($tipo){
-
-case 'ingreso':
-    if($ingresos){
-    echo "
-    <script>
-    swal.fire
-    ({
-        position: 'center',
-        toast: false,
-        showConfirmButton: false,
-        title: 'Ingreso agregado',
-        text: 'El Ingreso se ha agregado correctamente',
-        icon: 'success'
-    }) 
-    </script>";
-    break;
+$idUser = (int) $_SESSION['idUser'];
+if (!mayorista_tiene_permiso($conexion, $idUser, array('reportes', 'reporte', 'tesoreria'))) {
+    http_response_code(403);
+    echo json_encode(array('success' => false, 'message' => 'No tenes permisos para registrar movimientos manuales.'));
+    exit();
 }
 
-case 'egreso':
-    if($egresos){
-    echo "
-    <script>
-    swal.fire
-    ({
-        position: 'center',
-        toast: false,
-        showConfirmButton: false,
-        title: 'Egreso Agregado',
-        text: 'El Egreso se ha agregado correctamente',
-        icon: 'success'
-    }) 
-    </script>";
-    break;
-}
-default: 
-    echo "
-    <script>
-    swal.fire
-    ({
-        position: 'center',
-        toast: false,
-        showConfirmButton: false,
-        title: 'Error',
-        text: 'Error al agregar',
-        icon: 'error'
-    }) 
-    </script>";
-}
+try {
+    mayorista_registrar_movimiento_tesoreria(
+        $conexion,
+        $_POST['tipo'] ?? '',
+        $_POST['valor'] ?? '',
+        $_POST['descripcion'] ?? '',
+        $_POST['fecha'] ?? date('Y-m-d'),
+        0,
+        (int) ($_POST['id_metodo'] ?? 1)
+    );
 
-
-?>
+    echo json_encode(array(
+        'success' => true,
+        'message' => (($_POST['tipo'] ?? '') === 'egreso' ? 'Egreso' : 'Ingreso') . ' agregado correctamente.'
+    ));
+} catch (Exception $e) {
+    http_response_code(422);
+    echo json_encode(array(
+        'success' => false,
+        'message' => $e->getMessage()
+    ));
+}

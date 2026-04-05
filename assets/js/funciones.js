@@ -145,7 +145,7 @@ function listar() {
             html = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-box-open fa-2x mb-2"></i><div>No hay productos cargados.</div></div></td></tr>';
         } else {
             response.forEach(function (row) {
-                const precioBloqueado = !!row.precio_editado;
+                const precioPersonalizado = !!row.precio_editado;
                 html += `
                     <tr>
                         <td><span class="badge badge-light">${row.codigo}</span></td>
@@ -158,11 +158,10 @@ function listar() {
                                 value="${parseFloat(row.precio_venta).toFixed(2)}"
                                 min="0"
                                 step="0.01"
-                                ${precioBloqueado ? 'disabled' : ''}
                                 onchange="actualizarPrecio(${row.id}, this.value, this)"
                             >
-                            <small class="d-block mt-1 ${precioBloqueado ? 'text-warning' : 'text-muted'}">
-                                ${precioBloqueado ? 'Precio ya editado en este pedido' : 'Se puede editar una sola vez'}
+                            <small class="d-block mt-1 ${precioPersonalizado ? 'text-warning' : 'text-muted'}">
+                                ${precioPersonalizado ? 'Precio personalizado para este pedido' : 'Se puede editar libremente hasta generar la venta'}
                             </small>
                         </td>
                         <td class="subtotal-item" data-subtotal="${row.sub_total}">${formatCurrency(row.sub_total)}</td>
@@ -246,13 +245,6 @@ function actualizarPrecio(id, nuevoPrecio, inputEl) {
                 const subtotal = precio * cantidad;
                 fila.find('.subtotal-item').data('subtotal', subtotal).text(formatCurrency(subtotal));
                 calcularVenta();
-                listar();
-            } else if (response === 'limite_edicion') {
-                showCenteredAlert({
-                    icon: 'warning',
-                    title: 'Ese precio ya fue editado una vez',
-                    timer: 2500
-                });
                 listar();
             } else {
                 listar();
@@ -398,158 +390,176 @@ $(function () {
         });
     });
 
-    const clienteAutocomplete = $('#nom_cliente').autocomplete({
-        minLength: 2,
-        source: function (request, response) {
-            $.getJSON('ajax.php', { q: request.term }, function (items) {
-                const resultados = Array.isArray(items) ? items : [];
-                const termino = String(request.term || '').trim();
+    if ($('#nom_cliente').length) {
+        const clienteAutocomplete = $('#nom_cliente').autocomplete({
+            minLength: 2,
+            source: function (request, response) {
+                $.getJSON('ajax.php', { q: request.term }, function (items) {
+                    const resultados = Array.isArray(items) ? items : [];
+                    const termino = String(request.term || '').trim();
 
-                if (termino.length >= 3 && resultados.length === 0) {
-                    response([{
-                        id: 0,
-                        label: 'No hay coincidencias',
-                        value: termino,
-                        noMatch: true
-                    }]);
+                    if (termino.length >= 3 && resultados.length === 0) {
+                        response([{
+                            id: 0,
+                            label: 'No hay coincidencias',
+                            value: termino,
+                            noMatch: true
+                        }]);
+                        return;
+                    }
+
+                    response(resultados);
+                });
+            },
+            appendTo: '#layoutSidenav_content',
+            classes: {
+                'ui-autocomplete': 'cliente-autocomplete-menu'
+            },
+            position: {
+                my: 'left top+8',
+                at: 'left bottom',
+                collision: 'fit'
+            },
+            open: function () {
+                const instance = $(this).autocomplete('instance');
+                if (!instance || !instance.menu || !instance.menu.element) {
                     return;
                 }
 
-                response(resultados);
-            });
-        },
-        appendTo: '#layoutSidenav_content',
-        classes: {
-            'ui-autocomplete': 'cliente-autocomplete-menu'
-        },
-        position: {
-            my: 'left top+8',
-            at: 'left bottom',
-            collision: 'fit'
-        },
-        open: function () {
-            const instance = $(this).autocomplete('instance');
-            if (!instance || !instance.menu || !instance.menu.element) {
-                return;
-            }
+                instance.menu.element.outerWidth($(this).outerWidth());
+            },
+            focus: function (event, ui) {
+                if (ui.item && ui.item.noMatch) {
+                    event.preventDefault();
+                    return false;
+                }
+            },
+            select: function (event, ui) {
+                if (ui.item && ui.item.noMatch) {
+                    event.preventDefault();
+                    return false;
+                }
 
-            instance.menu.element.outerWidth($(this).outerWidth());
-        },
-        focus: function (event, ui) {
-            if (ui.item && ui.item.noMatch) {
-                event.preventDefault();
+                $('#idcliente').val(ui.item.id);
+                $('#nom_cliente').val(ui.item.label);
+                $('#tel_cliente').val(ui.item.telefono || '');
+                $('#dir_cliente').val(ui.item.direccion || '');
+                $('#cc_saldo_actual').text(formatCurrency(ui.item.saldo_cc || 0));
+                $('#cc_limite').text(formatCurrency(ui.item.limite_credito || 0));
+                calcularVenta();
                 return false;
             }
-        },
-        select: function (event, ui) {
-            if (ui.item && ui.item.noMatch) {
-                event.preventDefault();
-                return false;
-            }
+        });
 
-            $('#idcliente').val(ui.item.id);
-            $('#nom_cliente').val(ui.item.label);
-            $('#tel_cliente').val(ui.item.telefono || '');
-            $('#dir_cliente').val(ui.item.direccion || '');
-            $('#cc_saldo_actual').text(formatCurrency(ui.item.saldo_cc || 0));
-            $('#cc_limite').text(formatCurrency(ui.item.limite_credito || 0));
-            calcularVenta();
-            return false;
+        const clienteInstance = clienteAutocomplete.autocomplete('instance');
+        if (clienteInstance) {
+            clienteInstance._renderItem = function (ul, item) {
+                if (item.noMatch) {
+                    return $('<li>')
+                        .addClass('autocomplete-empty-state')
+                        .append('<div class="ui-menu-item-wrapper">No hay coincidencias</div>')
+                        .appendTo(ul);
+                }
+
+                return $('<li>')
+                    .append(
+                        $('<div class="ui-menu-item-wrapper">').append(
+                            $('<div class="autocomplete-client-name">').text(item.label),
+                            $('<small class="autocomplete-client-meta">').text(item.telefono || item.direccion || '')
+                        )
+                    )
+                    .appendTo(ul);
+            };
         }
-    });
+    }
 
-    clienteAutocomplete.autocomplete('instance')._renderItem = function (ul, item) {
-        if (item.noMatch) {
-            return $('<li>')
-                .addClass('autocomplete-empty-state')
-                .append('<div class="ui-menu-item-wrapper">No hay coincidencias</div>')
-                .appendTo(ul);
-        }
+    if ($('#producto').length) {
+        $('#producto').autocomplete({
+            minLength: 2,
+            source: function (request, response) {
+                $.getJSON('ajax.php', {
+                    pro: request.term,
+                    tipo_venta: $('#tipo_venta').val()
+                }, function (items) {
+                    const resultados = Array.isArray(items) ? items : [];
+                    const termino = String(request.term || '').trim();
 
-        return $('<li>')
-            .append(
-                $('<div class="ui-menu-item-wrapper">').append(
-                    $('<div class="autocomplete-client-name">').text(item.label),
-                    $('<small class="autocomplete-client-meta">').text(item.telefono || item.direccion || '')
-                )
-            )
-            .appendTo(ul);
-    };
+                    if (termino.length >= 3 && resultados.length === 0) {
+                        response([{
+                            id: 0,
+                            label: 'No hay coincidencias',
+                            value: termino,
+                            noMatch: true
+                        }]);
+                        return;
+                    }
 
-    $('#producto').autocomplete({
-        minLength: 2,
-        source: function (request, response) {
-            $.getJSON('ajax.php', {
-                pro: request.term,
-                tipo_venta: $('#tipo_venta').val()
-            }, function (items) {
-                const resultados = Array.isArray(items) ? items : [];
-                const termino = String(request.term || '').trim();
-
-                if (termino.length >= 3 && resultados.length === 0) {
-                    response([{
-                        id: 0,
-                        label: 'No hay coincidencias',
-                        value: termino,
-                        noMatch: true
-                    }]);
+                    response(resultados);
+                });
+            },
+            appendTo: '.product-search-box',
+            classes: {
+                'ui-autocomplete': 'producto-autocomplete-menu'
+            },
+            position: {
+                my: 'left top+8',
+                at: 'left bottom',
+                collision: 'fit'
+            },
+            open: function () {
+                const instance = $(this).autocomplete('instance');
+                if (!instance || !instance.menu || !instance.menu.element) {
                     return;
                 }
 
-                response(resultados);
-            });
-        },
-        appendTo: '.product-search-box',
-        classes: {
-            'ui-autocomplete': 'producto-autocomplete-menu'
-        },
-        position: {
-            my: 'left top+8',
-            at: 'left bottom',
-            collision: 'fit'
-        },
-        open: function () {
-            const instance = $(this).autocomplete('instance');
-            if (!instance || !instance.menu || !instance.menu.element) {
-                return;
-            }
+                instance.menu.element.outerWidth($(this).outerWidth());
+            },
+            focus: function (event, ui) {
+                if (ui.item && ui.item.noMatch) {
+                    event.preventDefault();
+                    return false;
+                }
+            },
+            select: function (event, ui) {
+                if (ui.item && ui.item.noMatch) {
+                    event.preventDefault();
+                    return false;
+                }
 
-            instance.menu.element.outerWidth($(this).outerWidth());
-        },
-        focus: function (event, ui) {
-            if (ui.item && ui.item.noMatch) {
-                event.preventDefault();
+                $('#producto').val(ui.item.label);
+                registrarDetalleManual(ui.item.id, 1, ui.item.precio);
                 return false;
             }
-        },
-        select: function (event, ui) {
-            if (ui.item && ui.item.noMatch) {
-                event.preventDefault();
-                return false;
-            }
+        });
 
-            $('#producto').val(ui.item.label);
-            registrarDetalleManual(ui.item.id, 1, ui.item.precio);
-            return false;
+        const productoInstance = $('#producto').autocomplete('instance');
+        if (productoInstance) {
+            productoInstance._renderItem = function (ul, item) {
+                if (item.noMatch) {
+                    return $('<li>')
+                        .addClass('autocomplete-empty-state')
+                        .append('<div class="ui-menu-item-wrapper">No hay coincidencias</div>')
+                        .appendTo(ul);
+                }
+
+                return $('<li>')
+                    .append(
+                        $('<div class="ui-menu-item-wrapper">').append(
+                            $('<div class="autocomplete-client-name">').text(item.label),
+                            $('<small class="autocomplete-client-meta">').text(
+                                [
+                                    item.marca ? 'Marca: ' + item.marca : '',
+                                    item.modelo ? 'Modelo: ' + item.modelo : '',
+                                    item.tipo_material ? 'Material: ' + item.tipo_material : '',
+                                    'Stock: ' + (item.existencia || 0)
+                                ].filter(Boolean).join(' | ')
+                            )
+                        )
+                    )
+                    .appendTo(ul);
+            };
         }
-    });
-
-    $('#producto').autocomplete('instance')._renderItem = function (ul, item) {
-        if (item.noMatch) {
-            return $('<li>')
-                .addClass('autocomplete-empty-state')
-                .append('<div class="ui-menu-item-wrapper">No hay coincidencias</div>')
-                .appendTo(ul);
-        }
-
-        return $('<li>')
-            .append(
-                $('<div class="ui-menu-item-wrapper">').append(
-                    $('<div class="autocomplete-client-name">').text(item.label)
-                )
-            )
-            .appendTo(ul);
-    };
+    }
 
     $('#tipo_venta').on('change', function () {
         const tipoVenta = $(this).val();
@@ -581,6 +591,27 @@ $(function () {
     });
     $('#btn_recalcular').on('click', calcularVenta);
 
+    function actualizarCamposCheque() {
+        const esCheque = $('input[name="pago"]:checked').val() === '5';
+        $('#cheque_fields').toggle(esCheque);
+        if (!esCheque) {
+            return;
+        }
+
+        const fechaBase = $('#cheque_fecha_base').val() || new Date().toISOString().slice(0, 10);
+        const plazo = parseInt($('#cheque_plazo_dias').val(), 10) || 30;
+        const fecha = new Date(fechaBase + 'T00:00:00');
+        fecha.setDate(fecha.getDate() + plazo);
+        const yyyy = fecha.getFullYear();
+        const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dd = String(fecha.getDate()).padStart(2, '0');
+        $('#cheque_fecha_deposito').val(yyyy + '-' + mm + '-' + dd);
+    }
+
+    $('input[name="pago"]').on('change', actualizarCamposCheque);
+    $('#cheque_plazo_dias, #cheque_fecha_base').on('change', actualizarCamposCheque);
+    actualizarCamposCheque();
+
     $('#btn_generar').on('click', function () {
         const idCliente = $('#idcliente').val();
         const metodoPago = $('input[name="pago"]:checked').val();
@@ -606,7 +637,10 @@ $(function () {
                 tipo_venta: $('#tipo_venta').val(),
                 metodo_pago: metodoPago,
                 modo_despacho: $('#modo_despacho').val(),
-                observacion: $('#observacion_venta').val()
+                observacion: $('#observacion_venta').val(),
+                cheque_plazo_dias: $('#cheque_plazo_dias').val(),
+                cheque_fecha_base: $('#cheque_fecha_base').val(),
+                cheque_fecha_deposito: $('#cheque_fecha_deposito').val()
             },
             success: function (response) {
                 if (response.mensaje === 'error') {

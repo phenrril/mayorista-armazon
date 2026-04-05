@@ -29,6 +29,10 @@ $reset_sistema_ejecutado = $reset_sistema_habilitado ? mayorista_reset_sistema_f
 $reset_sistema_token = $reset_sistema_habilitado ? mayorista_generar_token_reset_sistema() : '';
 $migracion_remito_pendiente = !mayorista_schema_remito_productos_listo($conexion);
 $migracion_remito_token = $migracion_remito_pendiente ? mayorista_generar_token_migracion_remito() : '';
+$migracion_finanzas_pendiente = !mayorista_schema_finanzas_operativas_listo($conexion);
+$migracion_finanzas_token = $migracion_finanzas_pendiente ? mayorista_generar_token_migracion_finanzas() : '';
+$importacion_productos_pendiente = !mayorista_importacion_productos_fue_ejecutada($conexion);
+$importacion_productos_token = $importacion_productos_pendiente ? mayorista_generar_token_importacion_productos() : '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion'])) {
     $alert = '';
     if (empty($_POST['nombre']) || empty($_POST['telefono']) || empty($_POST['email']) || empty($_POST['direccion'])) {
@@ -118,6 +122,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion
                     </button>
                     <small class="text-muted d-block mt-3">
                         El botón se ocultará automáticamente cuando la migración quede aplicada correctamente.
+                    </small>
+                </div>
+            </div>
+            <?php } ?>
+
+            <?php if ($migracion_finanzas_pendiente) { ?>
+            <div class="card card-modern mb-4" id="cardMigracionFinanzas">
+                <div class="card-header-modern card-header-modern-warning">
+                    <i class="fas fa-coins mr-2"></i> Migración Finanzas Operativas
+                </div>
+                <div class="card-body card-body-modern">
+                    <p class="mb-3">
+                        <i class="fas fa-info-circle text-info mr-2"></i>
+                        Ejecutá una sola vez esta migración para habilitar proveedores, compromisos financieros, cheques y pagos parciales.
+                    </p>
+                    <div id="resultado-migracion-finanzas" class="mb-3"></div>
+                    <button
+                        type="button"
+                        class="btn btn-modern btn-modern-warning"
+                        id="btnMigracionFinanzas"
+                        data-endpoint="ejecutar_migracion_finanzas.php"
+                        data-token="<?php echo htmlspecialchars($migracion_finanzas_token, ENT_QUOTES, 'UTF-8'); ?>"
+                    >
+                        <i class="fas fa-play mr-2"></i> Ejecutar migración única
+                    </button>
+                    <small class="text-muted d-block mt-3">
+                        El botón se ocultará automáticamente cuando la estructura financiera quede aplicada correctamente.
+                    </small>
+                </div>
+            </div>
+            <?php } ?>
+
+            <?php if ($importacion_productos_pendiente) { ?>
+            <div class="card card-modern mb-4" id="cardImportacionProductos">
+                <div class="card-header-modern card-header-modern-warning">
+                    <i class="fas fa-file-excel mr-2"></i> Importación inicial de productos
+                </div>
+                <div class="card-body card-body-modern">
+                    <p class="mb-3">
+                        <i class="fas fa-info-circle text-info mr-2"></i>
+                        Seleccioná la planilla XLSX de productos para importar todo el catálogo una sola vez. Si un código ya existe, se actualizará.
+                    </p>
+                    <div class="form-group">
+                        <label for="archivoImportacionProductos">Archivo XLSX</label>
+                        <input
+                            type="file"
+                            class="form-control-file"
+                            id="archivoImportacionProductos"
+                            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        >
+                    </div>
+                    <div id="resultado-importacion-productos" class="mb-3"></div>
+                    <button
+                        type="button"
+                        class="btn btn-modern btn-modern-warning"
+                        id="btnImportacionProductos"
+                        data-endpoint="importar_productos_xlsx.php"
+                        data-token="<?php echo htmlspecialchars($importacion_productos_token, ENT_QUOTES, 'UTF-8'); ?>"
+                    >
+                        <i class="fas fa-upload mr-2"></i> Importar productos una sola vez
+                    </button>
+                    <small class="text-muted d-block mt-3">
+                        Antes de ejecutar se mostrará una previsualización y se pedirá escribir <code>IMPORTAR PRODUCTOS</code>.
                     </small>
                 </div>
             </div>
@@ -304,6 +371,8 @@ window.addEventListener('load', function() {
 
     initResetSistema();
     initMigracionRemito();
+    initMigracionFinanzas();
+    initImportacionProductos();
     initInstalador();
 });
 
@@ -815,6 +884,264 @@ function ejecutarMigracionRemito($button) {
                 : 'Error al ejecutar la migración.';
             $('#resultado-migracion-remito').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
             $button.prop('disabled', false).html(htmlOriginal);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
+}
+
+function initMigracionFinanzas() {
+    const $button = $('#btnMigracionFinanzas');
+    if ($button.length === 0) {
+        return;
+    }
+
+    $button.on('click', function() {
+        Swal.fire({
+            title: '¿Ejecutar migración financiera?',
+            html: `
+                <div class="text-left">
+                    <p>Esto habilitará:</p>
+                    <ul>
+                        <li>Alta de proveedores</li>
+                        <li>Compromisos y deudas pendientes</li>
+                        <li>Cheques recibidos y emitidos</li>
+                        <li>Pagos parciales y recordatorios</li>
+                    </ul>
+                    <p class="mb-0 text-warning"><strong>La acción es de un solo uso desde esta UI.</strong></p>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-play mr-2"></i>Ejecutar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#c48b2f',
+            cancelButtonColor: '#6c757d',
+            allowOutsideClick: false
+        }).then((result) => {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            ejecutarMigracionFinanzas($button);
+        });
+    });
+}
+
+function ejecutarMigracionFinanzas($button) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const htmlOriginal = '<i class="fas fa-play mr-2"></i> Ejecutar migración única';
+
+    $button.prop('disabled', true);
+    $button.html('<i class="fas fa-spinner fa-spin mr-2"></i> Ejecutando...');
+    $('#resultado-migracion-finanzas').html('');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            csrf_token: token
+        },
+        success: function(response) {
+            if (!response || !response.success) {
+                const message = response && response.message ? response.message : 'No se pudo ejecutar la migración financiera.';
+                $('#resultado-migracion-finanzas').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                $button.prop('disabled', false).html(htmlOriginal);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Migración no completada',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            $('#resultado-migracion-finanzas').html('<div class="alert alert-success" role="alert">' + response.message + '</div>');
+            $('#cardMigracionFinanzas').slideUp(250);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Migración aplicada',
+                text: response.message,
+                confirmButtonColor: '#198754'
+            });
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Error al ejecutar la migración financiera.';
+            $('#resultado-migracion-finanzas').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            $button.prop('disabled', false).html(htmlOriginal);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
+}
+
+function initImportacionProductos() {
+    const $button = $('#btnImportacionProductos');
+    if ($button.length === 0) {
+        return;
+    }
+
+    $button.on('click', function() {
+        const fileInput = document.getElementById('archivoImportacionProductos');
+        const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+        if (!file) {
+            $('#resultado-importacion-productos').html('<div class="alert alert-warning" role="alert">Seleccioná primero la planilla XLSX a importar.</div>');
+            return;
+        }
+
+        previsualizarImportacionProductos($button, file);
+    });
+}
+
+function previsualizarImportacionProductos($button, file) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const formData = new FormData();
+    formData.append('csrf_token', token);
+    formData.append('archivo_productos', file);
+    formData.append('preview_only', '1');
+
+    $('#resultado-importacion-productos').html('<div class="alert alert-info" role="alert">Analizando planilla para generar la previsualización...</div>');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        data: formData,
+        dataType: 'json',
+        processData: false,
+        contentType: false,
+        timeout: 180000,
+        success: function(response) {
+            if (!response || !response.success || !response.preview) {
+                const message = response && response.message ? response.message : 'No se pudo generar la previsualización.';
+                $('#resultado-importacion-productos').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Previsualización no disponible',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            const preview = response.preview;
+            Swal.fire({
+                title: 'Confirmar importación masiva',
+                html: `
+                    <div class="text-left">
+                        <p><strong>Archivo:</strong> ${response.label || file.name}</p>
+                        <ul>
+                            <li>Filas válidas: <strong>${preview.filas_validas || 0}</strong></li>
+                            <li>Insertar estimado: <strong>${preview.insertar_estimado || 0}</strong></li>
+                            <li>Actualizar estimado: <strong>${preview.actualizar_estimado || 0}</strong></li>
+                            <li>Omitidas: <strong>${preview.omitidos || 0}</strong></li>
+                        </ul>
+                        <p class="mb-2 text-warning"><strong>Acción de una sola vez en esta base.</strong></p>
+                        <p class="mb-0">Para continuar escribí exactamente: <code>IMPORTAR PRODUCTOS</code></p>
+                    </div>
+                `,
+                icon: 'warning',
+                input: 'text',
+                inputLabel: 'Frase de confirmación',
+                inputPlaceholder: 'IMPORTAR PRODUCTOS',
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-upload mr-2"></i>Importar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#c48b2f',
+                cancelButtonColor: '#6c757d',
+                allowOutsideClick: false,
+                inputValidator: function(value) {
+                    if (value !== 'IMPORTAR PRODUCTOS') {
+                        return 'La frase no coincide exactamente.';
+                    }
+                }
+            }).then((result) => {
+                if (!result.isConfirmed) {
+                    return;
+                }
+
+                ejecutarImportacionProductos($button, file);
+            });
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Error al generar la previsualización.';
+            $('#resultado-importacion-productos').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
+}
+
+function ejecutarImportacionProductos($button, file) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const textoOriginal = '<i class="fas fa-upload mr-2"></i> Importar productos una sola vez';
+    const formData = new FormData();
+    formData.append('csrf_token', token);
+    formData.append('archivo_productos', file);
+
+    $button.prop('disabled', true);
+    $button.html('<i class="fas fa-spinner fa-spin mr-2"></i> Importando...');
+    $('#resultado-importacion-productos').html('');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        data: formData,
+        dataType: 'json',
+        processData: false,
+        contentType: false,
+        timeout: 180000,
+        success: function(response) {
+            if (!response || !response.success) {
+                const message = response && response.message ? response.message : 'No se pudo completar la importación.';
+                $('#resultado-importacion-productos').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                $button.prop('disabled', false).html(textoOriginal);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Importación no completada',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            $('#resultado-importacion-productos').html('<div class="alert alert-success" role="alert">' + response.message + '</div>');
+            $('#cardImportacionProductos').slideUp(250);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Importación aplicada',
+                text: response.message,
+                confirmButtonColor: '#198754'
+            });
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Error al ejecutar la importación.';
+            $('#resultado-importacion-productos').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            $button.prop('disabled', false).html(textoOriginal);
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
