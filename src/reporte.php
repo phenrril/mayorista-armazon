@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $fechaCompromiso = $_POST['fecha_compromiso'] ?? date('Y-m-d');
             $fechaVencimiento = $_POST['fecha_vencimiento'] ?? $fechaCompromiso;
             $fechaDeposito = trim((string) ($_POST['fecha_deposito'] ?? ''));
-            $estado = $tipoCompromiso === 'cheque_recibido' ? 'pendiente_confirmacion' : 'pendiente';
+            $estado = in_array($tipoCompromiso, array('cheque_recibido', 'cheque_emitido'), true) ? 'pendiente_confirmacion' : 'pendiente';
             $idProveedor = 0;
 
             if (in_array($tipoCompromiso, array('deuda_proveedor', 'cheque_emitido'), true)) {
@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (int) ($_POST['id_metodo_pago_compromiso'] ?? 1)
             );
 
-            if (in_array($compromiso['tipo'], array('deuda_proveedor', 'cheque_emitido', 'compromiso_pago'), true)) {
+            if (in_array($compromiso['tipo'], array('deuda_proveedor', 'compromiso_pago'), true)) {
                 mayorista_registrar_movimiento_tesoreria(
                     $conexion,
                     'egreso',
@@ -144,6 +144,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mayorista_confirmar_cheque_recibido($conexion, (int) ($_POST['id_compromiso'] ?? 0), $_POST['fecha_confirmacion'] ?? date('Y-m-d'));
             mysqli_commit($conexion);
             $alert = '<div class="alert alert-success">Cheque confirmado e impactado como ingreso.</div>';
+        } elseif ($accion === 'confirmar_cheque_emitido' && $hasFinanzas) {
+            mysqli_begin_transaction($conexion);
+            mayorista_confirmar_cheque_emitido($conexion, (int) ($_POST['id_compromiso'] ?? 0), $_POST['fecha_confirmacion'] ?? date('Y-m-d'));
+            mysqli_commit($conexion);
+            $alert = '<div class="alert alert-success">Cheque emitido confirmado e impactado como egreso.</div>';
         } elseif ($accion === 'posponer_recordatorio' && $hasFinanzas) {
             mayorista_diferir_recordatorio_compromiso($conexion, (int) ($_POST['id_compromiso'] ?? 0));
             $alert = '<div class="alert alert-info">El recordatorio se volverá a mostrar mañana.</div>';
@@ -590,6 +595,13 @@ include_once "includes/header.php";
                                         <input type="hidden" name="fecha_confirmacion" value="<?php echo date('Y-m-d'); ?>">
                                         <button class="btn btn-sm btn-success" type="submit">Confirmar depósito</button>
                                     </form>
+                                    <?php } elseif ($recordatorio['tipo'] === 'cheque_emitido' && $recordatorio['estado'] === 'pendiente_confirmacion') { ?>
+                                    <form method="post" class="mr-2 mb-2">
+                                        <input type="hidden" name="action" value="confirmar_cheque_emitido">
+                                        <input type="hidden" name="id_compromiso" value="<?php echo (int) $recordatorio['id']; ?>">
+                                        <input type="hidden" name="fecha_confirmacion" value="<?php echo date('Y-m-d'); ?>">
+                                        <button class="btn btn-sm btn-danger" type="submit">Confirmar débito</button>
+                                    </form>
                                     <?php } ?>
                                     <form method="post" class="mb-2">
                                         <input type="hidden" name="action" value="posponer_recordatorio">
@@ -653,7 +665,14 @@ include_once "includes/header.php";
                                                         <input type="hidden" name="fecha_confirmacion" value="<?php echo date('Y-m-d'); ?>">
                                                         <button class="btn btn-sm btn-success" type="submit">Confirmar</button>
                                                     </form>
-                                                <?php } elseif ((float) $comp['saldo_pendiente'] > 0.009 && $comp['tipo'] !== 'cheque_recibido') { ?>
+                                                <?php } elseif ($comp['tipo'] === 'cheque_emitido' && $comp['estado'] === 'pendiente_confirmacion') { ?>
+                                                    <form method="post" class="mb-2">
+                                                        <input type="hidden" name="action" value="confirmar_cheque_emitido">
+                                                        <input type="hidden" name="id_compromiso" value="<?php echo (int) $comp['id']; ?>">
+                                                        <input type="hidden" name="fecha_confirmacion" value="<?php echo date('Y-m-d'); ?>">
+                                                        <button class="btn btn-sm btn-danger" type="submit">Confirmar débito</button>
+                                                    </form>
+                                                <?php } elseif ((float) $comp['saldo_pendiente'] > 0.009 && in_array($comp['tipo'], array('deuda_proveedor', 'compromiso_pago'), true)) { ?>
                                                     <form method="post" class="form-inline">
                                                         <input type="hidden" name="action" value="registrar_pago_compromiso">
                                                         <input type="hidden" name="id_compromiso" value="<?php echo (int) $comp['id']; ?>">

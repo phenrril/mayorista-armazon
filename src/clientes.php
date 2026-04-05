@@ -186,6 +186,23 @@ if (!empty($_POST)) {
     }
 }
 ?>
+<style>
+.acciones-cliente-col {
+    white-space: nowrap;
+    min-width: 150px;
+}
+
+.acciones-cliente-group {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+}
+
+.acciones-cliente-group .btn-action {
+    margin-right: 0 !important;
+}
+</style>
 <div class="clientes-container fade-in-container">
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap">
         <div>
@@ -263,7 +280,7 @@ if (!empty($_POST)) {
                             <th>CUIT</th>
                             <th>Condición IVA</th>
                             <th>Estado</th>
-                            <th>Acciones</th>
+                            <th class="acciones-cliente-col">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -309,8 +326,8 @@ if (!empty($_POST)) {
                                     <td><?php echo htmlspecialchars($data['cuit'] ?: '-'); ?></td>
                                     <td><?php echo htmlspecialchars($data['condicion_iva'] ?: 'Consumidor Final'); ?></td>
                                     <td><?php echo $estado; ?></td>
-                                    <td>
-                                        <div class="btn-group" role="group">
+                                    <td class="acciones-cliente-col">
+                                        <div class="btn-group acciones-cliente-group" role="group">
                                             <?php if ($data['estado'] == 1) { ?>
                                                 <a href="cuenta_corriente.php?cliente=<?php echo $data['idcliente']; ?>" class="btn btn-info btn-sm btn-action" title="Cuenta corriente">
                                                     <i class='fas fa-file-invoice-dollar'></i>

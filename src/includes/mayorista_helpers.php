@@ -219,6 +219,35 @@ function mayorista_invalidar_token_importacion_productos()
     }
 }
 
+function mayorista_generar_token_importacion_clientes()
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return '';
+    }
+
+    if (empty($_SESSION['importacion_clientes_token']) || !is_string($_SESSION['importacion_clientes_token'])) {
+        $_SESSION['importacion_clientes_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['importacion_clientes_token'];
+}
+
+function mayorista_validar_token_importacion_clientes($token)
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['importacion_clientes_token'])) {
+        return false;
+    }
+
+    return hash_equals($_SESSION['importacion_clientes_token'], (string) $token);
+}
+
+function mayorista_invalidar_token_importacion_clientes()
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['importacion_clientes_token']);
+    }
+}
+
 function mayorista_tipos_material_producto()
 {
     return array('Acetato', 'Tr90', 'Metal', 'Inyeccion');
@@ -397,6 +426,43 @@ function mayorista_marcar_importacion_productos_ejecutada($conexion)
 
     $sql = "INSERT INTO sistema_flags (clave, valor)
         VALUES ('importacion_productos_xlsx_2026', '1')
+        ON DUPLICATE KEY UPDATE
+            valor = VALUES(valor),
+            updated_at = CURRENT_TIMESTAMP";
+
+    return mysqli_query($conexion, $sql) !== false;
+}
+
+function mayorista_importacion_clientes_fue_ejecutada($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $query = mysqli_query(
+        $conexion,
+        "SELECT valor
+         FROM sistema_flags
+         WHERE clave = 'importacion_clientes_xlsx_2026'
+         LIMIT 1"
+    );
+
+    if (!$query || mysqli_num_rows($query) === 0) {
+        return false;
+    }
+
+    $row = mysqli_fetch_assoc($query);
+    return isset($row['valor']) && $row['valor'] === '1';
+}
+
+function mayorista_marcar_importacion_clientes_ejecutada($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $sql = "INSERT INTO sistema_flags (clave, valor)
+        VALUES ('importacion_clientes_xlsx_2026', '1')
         ON DUPLICATE KEY UPDATE
             valor = VALUES(valor),
             updated_at = CURRENT_TIMESTAMP";
@@ -828,7 +894,7 @@ function mayorista_registrar_pago_compromiso($conexion, $idCompromiso, $monto, $
 
     $query = mysqli_query(
         $conexion,
-        "SELECT saldo_pendiente
+        "SELECT tipo, saldo_pendiente
          FROM compromisos_financieros
          WHERE id = $idCompromiso
          LIMIT 1"
@@ -836,6 +902,9 @@ function mayorista_registrar_pago_compromiso($conexion, $idCompromiso, $monto, $
     $compromiso = $query ? mysqli_fetch_assoc($query) : null;
     if (!$compromiso) {
         throw new InvalidArgumentException('No se encontró el compromiso indicado.');
+    }
+    if (in_array($compromiso['tipo'] ?? '', array('cheque_recibido', 'cheque_emitido'), true)) {
+        throw new InvalidArgumentException('Los cheques deben confirmarse desde los recordatorios, no como pago parcial.');
     }
 
     $saldoActual = (float) ($compromiso['saldo_pendiente'] ?? 0);
@@ -913,6 +982,9 @@ function mayorista_confirmar_cheque_recibido($conexion, $idCompromiso, $fechaIng
     if (!$cheque) {
         throw new InvalidArgumentException('No se encontró el cheque recibido.');
     }
+    if (($cheque['estado'] ?? '') === 'cumplido' || (float) ($cheque['saldo_pendiente'] ?? 0) <= 0.009) {
+        throw new InvalidArgumentException('Ese cheque ya fue confirmado anteriormente.');
+    }
 
     $fechaIngreso = $fechaIngreso ?: date('Y-m-d');
     if (!mayorista_fecha_iso_valida($fechaIngreso)) {
@@ -943,6 +1015,61 @@ function mayorista_confirmar_cheque_recibido($conexion, $idCompromiso, $fechaIng
     return true;
 }
 
+function mayorista_confirmar_cheque_emitido($conexion, $idCompromiso, $fechaEgreso = null)
+{
+    $idCompromiso = (int) $idCompromiso;
+    if ($idCompromiso <= 0) {
+        throw new InvalidArgumentException('Cheque inválido.');
+    }
+    if (!mayorista_table_exists($conexion, 'compromisos_financieros')) {
+        throw new RuntimeException('La estructura financiera aún no está disponible.');
+    }
+
+    $query = mysqli_query(
+        $conexion,
+        "SELECT *
+         FROM compromisos_financieros
+         WHERE id = $idCompromiso
+         AND tipo = 'cheque_emitido'
+         LIMIT 1"
+    );
+    $cheque = $query ? mysqli_fetch_assoc($query) : null;
+    if (!$cheque) {
+        throw new InvalidArgumentException('No se encontró el cheque emitido.');
+    }
+    if (($cheque['estado'] ?? '') === 'cumplido' || (float) ($cheque['saldo_pendiente'] ?? 0) <= 0.009) {
+        throw new InvalidArgumentException('Ese cheque emitido ya fue confirmado anteriormente.');
+    }
+
+    $fechaEgreso = $fechaEgreso ?: date('Y-m-d');
+    if (!mayorista_fecha_iso_valida($fechaEgreso)) {
+        throw new InvalidArgumentException('La fecha de confirmación no es válida.');
+    }
+
+    mayorista_registrar_movimiento_tesoreria(
+        $conexion,
+        'egreso',
+        (float) $cheque['monto_total'],
+        'Cheque debitado: ' . ($cheque['descripcion'] ?? ('Compromiso #' . $idCompromiso)),
+        $fechaEgreso,
+        (int) ($cheque['id_cliente'] ?? 0),
+        (int) ($cheque['id_metodo'] ?? 5),
+        trim((string) ($cheque['id_venta'] ?? '')) !== '' ? (string) $cheque['id_venta'] : ('CHEQUE-EMITIDO-' . $idCompromiso)
+    );
+
+    mysqli_query(
+        $conexion,
+        "UPDATE compromisos_financieros
+         SET saldo_pendiente = 0,
+             estado = 'cumplido',
+             fecha_ultimo_recordatorio = CURDATE(),
+             updated_at = NOW()
+         WHERE id = $idCompromiso"
+    );
+
+    return true;
+}
+
 function mayorista_obtener_alertas_financieras($conexion, $limit = 5)
 {
     $limit = max(1, (int) $limit);
@@ -957,15 +1084,20 @@ function mayorista_obtener_alertas_financieras($conexion, $limit = 5)
          LEFT JOIN cliente c ON cf.id_cliente = c.idcliente
          LEFT JOIN proveedores p ON cf.id_proveedor = p.id
          WHERE (
-             (cf.estado = 'pendiente_confirmacion' AND cf.fecha_deposito IS NOT NULL AND cf.fecha_deposito < CURDATE())
+            (cf.tipo = 'cheque_recibido' AND cf.estado = 'pendiente_confirmacion' AND cf.fecha_deposito IS NOT NULL AND cf.fecha_deposito < CURDATE())
+            OR
+            (cf.tipo = 'cheque_emitido' AND cf.estado = 'pendiente_confirmacion' AND cf.fecha_vencimiento <= CURDATE())
              OR
              (cf.estado IN ('pendiente', 'parcial', 'vencido') AND cf.fecha_vencimiento <= CURDATE())
          )
          AND (cf.fecha_ultimo_recordatorio IS NULL OR cf.fecha_ultimo_recordatorio < CURDATE())
          ORDER BY
              CASE WHEN cf.estado = 'pendiente_confirmacion' THEN 0 ELSE 1 END,
-             cf.fecha_vencimiento ASC,
-             cf.fecha_deposito ASC
+            CASE
+                WHEN cf.tipo = 'cheque_recibido' THEN cf.fecha_deposito
+                ELSE cf.fecha_vencimiento
+            END ASC,
+            cf.id ASC
          LIMIT $limit"
     );
 

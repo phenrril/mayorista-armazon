@@ -11,6 +11,11 @@ if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
 $id_user = (int) $_SESSION['idUser'];
 mayorista_requiere_permiso($conexion, $id_user, array('cuenta_corriente', 'clientes'));
 $esAdmin = mayorista_es_admin($id_user);
+$hasClienteOptica = mayorista_column_exists($conexion, 'cliente', 'optica');
+$hasClienteLocalidad = mayorista_column_exists($conexion, 'cliente', 'localidad');
+$hasClienteProvincia = mayorista_column_exists($conexion, 'cliente', 'provincia');
+$hasClienteDni = mayorista_column_exists($conexion, 'cliente', 'dni');
+$hasClienteCuit = mayorista_column_exists($conexion, 'cliente', 'cuit');
 
 $schemaReady = mayorista_table_exists($conexion, 'cuenta_corriente') && mayorista_table_exists($conexion, 'movimientos_cc');
 $alert = '';
@@ -79,14 +84,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
 $clientes = mysqli_query(
     $conexion,
     $schemaReady
-        ? "SELECT c.idcliente, c.nombre, c.telefono, c.direccion,
+        ? "SELECT c.idcliente, c.nombre, c.telefono, c.direccion,"
+          . ($hasClienteOptica ? " c.optica," : " '' AS optica,")
+          . ($hasClienteLocalidad ? " c.localidad," : " '' AS localidad,")
+          . ($hasClienteProvincia ? " c.provincia," : " '' AS provincia,")
+          . ($hasClienteDni ? " c.dni," : " '' AS dni,")
+          . ($hasClienteCuit ? " c.cuit," : " '' AS cuit,")
+          . "
                   cc.id AS cc_id, cc.limite_credito, cc.saldo_actual,
                   MAX(m.fecha) AS ultima_actividad
            FROM cliente c
            LEFT JOIN cuenta_corriente cc ON c.idcliente = cc.id_cliente
            LEFT JOIN movimientos_cc m ON cc.id = m.id_cuenta_corriente
            WHERE c.estado = 1
-           GROUP BY c.idcliente, c.nombre, c.telefono, c.direccion, cc.id, cc.limite_credito, cc.saldo_actual
+           GROUP BY c.idcliente, c.nombre, c.telefono, c.direccion,"
+           . ($hasClienteOptica ? " c.optica," : '')
+           . ($hasClienteLocalidad ? " c.localidad," : '')
+           . ($hasClienteProvincia ? " c.provincia," : '')
+           . ($hasClienteDni ? " c.dni," : '')
+           . ($hasClienteCuit ? " c.cuit," : '')
+           . " cc.id, cc.limite_credito, cc.saldo_actual
            ORDER BY c.nombre ASC"
         : "SELECT idcliente, nombre, telefono, direccion FROM cliente WHERE estado = 1 ORDER BY nombre ASC"
 );
@@ -140,13 +157,14 @@ include_once "includes/header.php";
                             type="text"
                             id="buscar_cliente_cc"
                             class="form-control"
-                            placeholder="Nombre, telefono o direccion"
+                            placeholder="Nombre, óptica, teléfono, dirección, localidad, DNI o CUIT"
                         >
                     </div>
                     <div class="table-responsive">
                         <table class="table table-hover custom-dt-init" id="tbl">
                             <thead class="thead-dark">
                                 <tr>
+                                    <th class="d-none">Busqueda</th>
                                     <th>Cliente</th>
                                     <th>Telefono</th>
                                     <th>Saldo actual</th>
@@ -160,9 +178,30 @@ include_once "includes/header.php";
                                     while ($row = mysqli_fetch_assoc($clientes)) {
                                         $saldo = $schemaReady ? (float) ($row['saldo_actual'] ?? 0) : 0;
                                         $limite = $schemaReady ? (float) ($row['limite_credito'] ?? 0) : 0;
+                                        $clienteBusquedaRaw = trim(implode(' ', array_filter(array(
+                                            $row['nombre'] ?? '',
+                                            $row['optica'] ?? '',
+                                            $row['telefono'] ?? '',
+                                            $row['direccion'] ?? '',
+                                            $row['localidad'] ?? '',
+                                            $row['provincia'] ?? '',
+                                            $row['dni'] ?? '',
+                                            $row['cuit'] ?? '',
+                                        ))));
+                                        $clienteBusqueda = $clienteBusquedaRaw;
+                                        $clienteBusquedaAscii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $clienteBusquedaRaw);
+                                        if ($clienteBusquedaAscii !== false && trim($clienteBusquedaAscii) !== '') {
+                                            $clienteBusqueda .= ' ' . $clienteBusquedaAscii;
+                                        }
                                 ?>
                                     <tr>
-                                        <td><?php echo htmlspecialchars($row['nombre']); ?></td>
+                                        <td class="d-none"><?php echo htmlspecialchars($clienteBusqueda); ?></td>
+                                        <td>
+                                            <div><?php echo htmlspecialchars($row['nombre']); ?></div>
+                                            <?php if (!empty($row['optica'])) { ?>
+                                                <small class="text-muted d-block"><?php echo htmlspecialchars($row['optica']); ?></small>
+                                            <?php } ?>
+                                        </td>
                                         <td><?php echo htmlspecialchars($row['telefono'] ?? '-'); ?></td>
                                         <td><?php echo mayorista_formatear_moneda($saldo); ?></td>
                                         <td><?php echo mayorista_formatear_moneda($limite); ?></td>
@@ -299,12 +338,29 @@ include_once "includes/header.php";
 </div>
 
 <script>
-$(function () {
+window.addEventListener('load', function () {
+    const $ = window.jQuery;
+    if (!$) {
+        return;
+    }
+
     const $input = $('#buscar_cliente_cc');
     const $table = $('#tbl');
 
+    if ($.fn.DataTable && $table.length && !$.fn.DataTable.isDataTable($table)) {
+        $table.DataTable({
+            pageLength: 10,
+            dom: 'tip',
+            columnDefs: [
+                { targets: 0, visible: false, searchable: true, orderable: false },
+                { targets: -1, orderable: false }
+            ],
+            order: [[1, 'asc']]
+        });
+    }
+
     $input.on('input', function () {
-        const value = $(this).val();
+        const value = ($(this).val() || '').toString();
         if ($.fn.DataTable && $.fn.DataTable.isDataTable($table)) {
             $table.DataTable().search(value).draw();
             return;
