@@ -67,6 +67,18 @@ class FacturacionElectronicaAfipSDK extends FacturacionElectronica {
      * Generar factura electrónica real contra AFIP
      */
     public function generarFactura($id_venta, array $overrideData = []) {
+        $facturaExistente = mysqli_query(
+            $this->conexion,
+            "SELECT 1
+             FROM facturas_electronicas
+             WHERE id_venta = " . intval($id_venta) . "
+             AND estado = 'aprobado'
+             LIMIT 1"
+        );
+        if ($facturaExistente && mysqli_num_rows($facturaExistente) > 0) {
+            throw new \Exception('La venta ya tiene una factura aprobada');
+        }
+
         $datos_facturacion = $this->obtenerDatosPreviosFacturacion($id_venta, $overrideData);
         $venta = $datos_facturacion['venta'];
         $tipo_comprobante = $datos_facturacion['tipo_comprobante'];

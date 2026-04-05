@@ -21,6 +21,7 @@ $hasCosto = mayorista_column_exists($conexion, 'producto', 'costo');
 $tiposProducto = mayorista_tipos_producto();
 $tiposMaterial = mayorista_tipos_material_producto();
 $alert = '';
+$previewProductos = array();
 
 if (!empty($_POST['action']) && $_POST['action'] === 'crear_producto') {
     $codigo = mysqli_real_escape_string($conexion, trim($_POST['codigo'] ?? ''));
@@ -106,20 +107,124 @@ if (!empty($_POST['action']) && $_POST['action'] === 'crear_producto') {
 if (!empty($_POST['action']) && $_POST['action'] === 'ajuste_masivo') {
     $objetivo = $_POST['objetivo_precio'] ?? 'minorista';
     $porcentaje = (float) ($_POST['porcentaje'] ?? 0);
-    $factor = 1 + ($porcentaje / 100);
+    $precioFijo = isset($_POST['precio_fijo']) ? (float) $_POST['precio_fijo'] : null;
+    $filtroMarca = mysqli_real_escape_string($conexion, trim($_POST['filtro_marca'] ?? ''));
+    $filtroModelo = mysqli_real_escape_string($conexion, trim($_POST['filtro_modelo'] ?? ''));
+    $filtroMaterial = trim($_POST['filtro_material'] ?? '');
+    $filtroTipo = trim($_POST['filtro_tipo'] ?? '');
+    $nuevaMarca = mysqli_real_escape_string($conexion, trim($_POST['nueva_marca'] ?? ''));
+    $nuevoModelo = mysqli_real_escape_string($conexion, trim($_POST['nuevo_modelo'] ?? ''));
+    $nuevoMaterial = trim($_POST['nuevo_material'] ?? '');
+    $nuevoTipo = trim($_POST['nuevo_tipo'] ?? '');
+    $modoOperacion = $_POST['modo_operacion'] ?? 'porcentaje';
+    $accionMasiva = $_POST['accion_masiva'] ?? 'aplicar';
 
-    if ($factor <= 0) {
-        $alert = '<div class="alert alert-warning">El porcentaje ingresado genera un precio invalido.</div>';
+    if (!in_array($filtroMaterial, array_merge(array(''), $tiposMaterial), true)) {
+        $filtroMaterial = '';
+    }
+    if (!in_array($filtroTipo, array_merge(array(''), $tiposProducto), true)) {
+        $filtroTipo = '';
+    }
+    if (!in_array($nuevoMaterial, array_merge(array(''), $tiposMaterial), true)) {
+        $nuevoMaterial = '';
+    }
+    if (!in_array($nuevoTipo, array_merge(array(''), $tiposProducto), true)) {
+        $nuevoTipo = '';
+    }
+
+    $where = array('1=1');
+    if ($filtroMarca !== '') {
+        $where[] = "marca LIKE '%$filtroMarca%'";
+    }
+    if ($hasModelo && $filtroModelo !== '') {
+        $where[] = "modelo LIKE '%$filtroModelo%'";
+    }
+    if ($hasTipoMaterial && $filtroMaterial !== '') {
+        $where[] = "tipo_material = '" . mysqli_real_escape_string($conexion, $filtroMaterial) . "'";
+    }
+    if ($hasTipo && $filtroTipo !== '') {
+        $where[] = "tipo = '" . mysqli_real_escape_string($conexion, $filtroTipo) . "'";
+    }
+
+    $campo = ($objetivo === 'mayorista' && $hasMayorista) ? 'precio_mayorista' : 'precio';
+    $updates = array();
+
+    if ($modoOperacion === 'porcentaje') {
+        $factor = 1 + ($porcentaje / 100);
+        if ($factor <= 0) {
+            $alert = '<div class="alert alert-warning">El porcentaje ingresado genera un precio invalido.</div>';
+        } elseif ($porcentaje != 0) {
+            $updates[] = "$campo = ROUND($campo * $factor, 2)";
+        }
     } else {
-        $campo = ($objetivo === 'mayorista' && $hasMayorista) ? 'precio_mayorista' : 'precio';
-        $update = mysqli_query(
-            $conexion,
-            "UPDATE producto
-             SET $campo = ROUND($campo * $factor, 2)"
-        );
-        $alert = $update
-            ? '<div class="alert alert-success">Actualizacion masiva aplicada sobre precio ' . $campo . '.</div>'
-            : '<div class="alert alert-danger">No se pudo aplicar el ajuste masivo.</div>';
+        if ($precioFijo !== null && $precioFijo >= 0) {
+            $updates[] = "$campo = " . round($precioFijo, 2);
+        }
+    }
+
+    if ($nuevaMarca !== '') {
+        $updates[] = "marca = '$nuevaMarca'";
+    }
+    if ($hasModelo && $nuevoModelo !== '') {
+        $updates[] = "modelo = '$nuevoModelo'";
+    }
+    if ($hasTipoMaterial && $nuevoMaterial !== '') {
+        $updates[] = "tipo_material = '" . mysqli_real_escape_string($conexion, $nuevoMaterial) . "'";
+    }
+    if ($hasTipo && $nuevoTipo !== '') {
+        $updates[] = "tipo = '" . mysqli_real_escape_string($conexion, $nuevoTipo) . "'";
+    }
+
+    $whereSql = implode(' AND ', $where);
+    $previewQuery = mysqli_query($conexion, "SELECT COUNT(*) AS total FROM producto WHERE $whereSql");
+    $previewData = $previewQuery ? mysqli_fetch_assoc($previewQuery) : array('total' => 0);
+    $totalAfectados = (int) ($previewData['total'] ?? 0);
+
+    if ($alert === '') {
+        if ($totalAfectados <= 0) {
+            $alert = '<div class="alert alert-warning">No hay productos que coincidan con los filtros seleccionados.</div>';
+        } elseif (empty($updates)) {
+            $alert = '<div class="alert alert-warning">Definí al menos un cambio para aplicar en la edición masiva.</div>';
+        } elseif ($accionMasiva === 'preview') {
+            $alert = '<div class="alert alert-info">Se previsualizaron ' . $totalAfectados . ' producto(s) afectados por la edición masiva.</div>';
+            $camposPreview = array('codproducto', 'codigo', 'descripcion', 'marca', 'precio', 'existencia');
+            if ($hasModelo) {
+                $camposPreview[] = 'modelo';
+            }
+            if ($hasTipoMaterial) {
+                $camposPreview[] = 'tipo_material';
+            }
+            if ($hasTipo) {
+                $camposPreview[] = 'tipo';
+            }
+            if ($hasMayorista) {
+                $camposPreview[] = 'precio_mayorista';
+            }
+
+            $previewListado = mysqli_query(
+                $conexion,
+                "SELECT " . implode(', ', $camposPreview) . "
+                 FROM producto
+                 WHERE $whereSql
+                 ORDER BY marca ASC, descripcion ASC
+                 LIMIT 15"
+            );
+            if ($previewListado) {
+                while ($rowPreview = mysqli_fetch_assoc($previewListado)) {
+                    $previewProductos[] = $rowPreview;
+                }
+            }
+        } else {
+            $update = mysqli_query(
+                $conexion,
+                "UPDATE producto
+                 SET " . implode(', ', $updates) . "
+                 WHERE $whereSql"
+            );
+            $alert = $update
+                ? '<div class="alert alert-success">Edicion masiva aplicada sobre ' . $totalAfectados . ' producto(s).</div>'
+                : '<div class="alert alert-danger">No se pudo aplicar la edición masiva.</div>';
+        }
     }
 }
 
@@ -149,6 +254,49 @@ include_once "includes/header.php";
     <?php } ?>
 
     <?php echo $alert; ?>
+
+    <?php if (!empty($previewProductos)) { ?>
+        <div class="card card-modern mb-4">
+            <div class="card-header card-header-modern">
+                <i class="fas fa-eye mr-2"></i> Vista previa de edición masiva
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">Se muestran los primeros <?php echo count($previewProductos); ?> productos que coinciden con los filtros elegidos.</p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="thead-dark">
+                            <tr>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th>Marca</th>
+                                <?php if ($hasModelo) { ?><th>Modelo</th><?php } ?>
+                                <?php if ($hasTipoMaterial) { ?><th>Material</th><?php } ?>
+                                <?php if ($hasTipo) { ?><th>Tipo</th><?php } ?>
+                                <th>Minorista</th>
+                                <?php if ($hasMayorista) { ?><th>Mayorista</th><?php } ?>
+                                <th>Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($previewProductos as $previewProducto) { ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($previewProducto['codigo']); ?></td>
+                                    <td><?php echo htmlspecialchars($previewProducto['descripcion']); ?></td>
+                                    <td><?php echo htmlspecialchars($previewProducto['marca']); ?></td>
+                                    <?php if ($hasModelo) { ?><td><?php echo htmlspecialchars($previewProducto['modelo'] ?? '-'); ?></td><?php } ?>
+                                    <?php if ($hasTipoMaterial) { ?><td><?php echo htmlspecialchars($previewProducto['tipo_material'] ?? '-'); ?></td><?php } ?>
+                                    <?php if ($hasTipo) { ?><td><?php echo htmlspecialchars(ucfirst(str_replace('-', ' ', $previewProducto['tipo'] ?? ''))); ?></td><?php } ?>
+                                    <td><?php echo number_format((float) $previewProducto['precio'], 2, ',', '.'); ?></td>
+                                    <?php if ($hasMayorista) { ?><td><?php echo number_format((float) ($previewProducto['precio_mayorista'] ?? 0), 2, ',', '.'); ?></td><?php } ?>
+                                    <td><?php echo (int) $previewProducto['existencia']; ?></td>
+                                </tr>
+                            <?php } ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    <?php } ?>
 
     <div class="row">
         <div class="col-md-4">
@@ -367,7 +515,7 @@ include_once "includes/header.php";
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header bg-info text-white">
-                <h5 class="modal-title">Actualizacion masiva</h5>
+                <h5 class="modal-title">Edición masiva</h5>
                 <button type="button" class="close text-white" data-dismiss="modal">
                     <span>&times;</span>
                 </button>
@@ -375,6 +523,51 @@ include_once "includes/header.php";
             <form method="post">
                 <input type="hidden" name="action" value="ajuste_masivo">
                 <div class="modal-body">
+                    <h6 class="mb-3">Filtros</h6>
+                    <div class="form-group">
+                        <label>Marca</label>
+                        <input type="text" name="filtro_marca" class="form-control" placeholder="Todas">
+                    </div>
+                    <?php if ($hasModelo) { ?>
+                    <div class="form-group">
+                        <label>Modelo</label>
+                        <input type="text" name="filtro_modelo" class="form-control" placeholder="Todos">
+                    </div>
+                    <?php } ?>
+                    <?php if ($hasTipoMaterial) { ?>
+                    <div class="form-group">
+                        <label>Material</label>
+                        <select name="filtro_material" class="form-control">
+                            <option value="">Todos</option>
+                            <?php foreach ($tiposMaterial as $tipoMaterial) { ?>
+                                <option value="<?php echo htmlspecialchars($tipoMaterial); ?>"><?php echo htmlspecialchars($tipoMaterial); ?></option>
+                            <?php } ?>
+                        </select>
+                    </div>
+                    <?php } ?>
+                    <?php if ($hasTipo) { ?>
+                    <div class="form-group">
+                        <label>Tipo</label>
+                        <select name="filtro_tipo" class="form-control">
+                            <option value="">Todos</option>
+                            <?php foreach ($tiposProducto as $tipoProducto) { ?>
+                                <option value="<?php echo htmlspecialchars($tipoProducto); ?>">
+                                    <?php echo htmlspecialchars(ucfirst(str_replace('-', ' ', $tipoProducto))); ?>
+                                </option>
+                            <?php } ?>
+                        </select>
+                    </div>
+                    <?php } ?>
+
+                    <hr>
+                    <h6 class="mb-3">Cambios</h6>
+                    <div class="form-group">
+                        <label>Modo de actualización de precio</label>
+                        <select name="modo_operacion" class="form-control">
+                            <option value="porcentaje">Por porcentaje</option>
+                            <option value="fijo">Precio fijo</option>
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label>Aplicar sobre</label>
                         <select name="objetivo_precio" class="form-control">
@@ -382,13 +575,52 @@ include_once "includes/header.php";
                             <?php if ($hasMayorista) { ?><option value="mayorista">Precio mayorista</option><?php } ?>
                         </select>
                     </div>
-                    <div class="form-group mb-0">
+                    <div class="form-group">
                         <label>Porcentaje</label>
                         <input type="number" step="0.01" name="porcentaje" class="form-control" placeholder="Ej: 12.5 para subir, -5 para bajar">
                     </div>
+                    <div class="form-group">
+                        <label>Precio fijo</label>
+                        <input type="number" step="0.01" min="0" name="precio_fijo" class="form-control" placeholder="Opcional">
+                    </div>
+                    <div class="form-group">
+                        <label>Nueva marca</label>
+                        <input type="text" name="nueva_marca" class="form-control" placeholder="Sin cambios">
+                    </div>
+                    <?php if ($hasModelo) { ?>
+                    <div class="form-group">
+                        <label>Nuevo modelo</label>
+                        <input type="text" name="nuevo_modelo" class="form-control" placeholder="Sin cambios">
+                    </div>
+                    <?php } ?>
+                    <?php if ($hasTipoMaterial) { ?>
+                    <div class="form-group">
+                        <label>Nuevo material</label>
+                        <select name="nuevo_material" class="form-control">
+                            <option value="">Sin cambios</option>
+                            <?php foreach ($tiposMaterial as $tipoMaterial) { ?>
+                                <option value="<?php echo htmlspecialchars($tipoMaterial); ?>"><?php echo htmlspecialchars($tipoMaterial); ?></option>
+                            <?php } ?>
+                        </select>
+                    </div>
+                    <?php } ?>
+                    <?php if ($hasTipo) { ?>
+                    <div class="form-group mb-0">
+                        <label>Nuevo tipo</label>
+                        <select name="nuevo_tipo" class="form-control">
+                            <option value="">Sin cambios</option>
+                            <?php foreach ($tiposProducto as $tipoProducto) { ?>
+                                <option value="<?php echo htmlspecialchars($tipoProducto); ?>">
+                                    <?php echo htmlspecialchars(ucfirst(str_replace('-', ' ', $tipoProducto))); ?>
+                                </option>
+                            <?php } ?>
+                        </select>
+                    </div>
+                    <?php } ?>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-info text-white" type="submit">Aplicar ajuste</button>
+                    <button class="btn btn-outline-info" type="submit" name="accion_masiva" value="preview">Previsualizar</button>
+                    <button class="btn btn-info text-white" type="submit" name="accion_masiva" value="aplicar">Aplicar edición</button>
                 </div>
             </form>
         </div>

@@ -101,19 +101,24 @@ function remito_texto($value, $fallback = '')
     return $value !== '' ? $value : $fallback;
 }
 
-function remito_modelo_color($row)
+function remito_marca($row)
 {
-    $partes = array_filter(array(
-        trim((string) ($row['marca'] ?? '')),
-        trim((string) ($row['modelo'] ?? '')),
-        trim((string) ($row['color'] ?? '')),
-    ));
+    return trim((string) ($row['marca'] ?? ''));
+}
 
-    if (empty($partes)) {
-        return trim((string) ($row['codigo'] ?? ''));
+function remito_modelo($row)
+{
+    $modelo = trim((string) ($row['modelo'] ?? ''));
+    if ($modelo !== '') {
+        return $modelo;
     }
 
-    return implode(' / ', $partes);
+    return trim((string) ($row['codigo'] ?? ''));
+}
+
+function remito_color($row)
+{
+    return trim((string) ($row['color'] ?? ''));
 }
 
 function remito_campo_box($pdf, $label, $value, $x, $y, $width, $height = 7.2)
@@ -163,9 +168,10 @@ function remito_dibujar_header($pdf, $brandLogoPath, $ventaData)
     remito_campo_box($pdf, 'CODIGO POSTAL:', remito_texto($ventaData['codigo_postal'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + ($rowGap * 2), $fieldWidth);
     remito_campo_box($pdf, 'TELEFONO:', remito_texto($ventaData['telefono'] ?? ''), $left, $leftY + ($rowGap * 3), $fieldWidth);
     remito_campo_box($pdf, 'PROVINCIA:', remito_texto($ventaData['provincia'] ?? ''), $left + $fieldWidth + $fieldGap, $leftY + ($rowGap * 3), $fieldWidth);
-    remito_campo_box($pdf, 'MODO DESPACHO:', remito_texto($ventaData['modo_despacho'] ?? '', 'A convenir'), $left, $leftY + ($rowGap * 4), 160);
+    $modoDespachoY = $leftY + ($rowGap * 4);
+    remito_campo_box($pdf, 'MODO DESPACHO:', remito_texto($ventaData['modo_despacho'] ?? '', 'A convenir'), $left, $modoDespachoY, 160);
 
-    return 110;
+    return $modoDespachoY + 18;
 }
 
 function remito_dibujar_tabla_header($pdf, $y, $widths)
@@ -173,13 +179,15 @@ function remito_dibujar_tabla_header($pdf, $y, $widths)
     $pdf->SetFillColor(45, 71, 82);
     $pdf->SetDrawColor(211, 218, 224);
     $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('Arial', 'B', 8.4);
+    $pdf->SetFont('Arial', 'B', 7.8);
     $pdf->SetXY(12, $y);
     $pdf->Cell($widths[0], 8, 'CANT.', 1, 0, 'C', true);
-    $pdf->Cell($widths[1], 8, utf8_decode('MODELO Y COLOR'), 1, 0, 'C', true);
-    $pdf->Cell($widths[2], 8, utf8_decode('DESCRIPCION'), 1, 0, 'C', true);
-    $pdf->Cell($widths[3], 8, utf8_decode('PRECIO UNIT.'), 1, 0, 'C', true);
-    $pdf->Cell($widths[4], 8, 'IMPORTE', 1, 1, 'C', true);
+    $pdf->Cell($widths[1], 8, 'MARCA', 1, 0, 'C', true);
+    $pdf->Cell($widths[2], 8, 'MODELO', 1, 0, 'C', true);
+    $pdf->Cell($widths[3], 8, 'COLOR', 1, 0, 'C', true);
+    $pdf->Cell($widths[4], 8, utf8_decode('DESCRIPCION'), 1, 0, 'C', true);
+    $pdf->Cell($widths[5], 8, utf8_decode('PRECIO UNIT.'), 1, 0, 'C', true);
+    $pdf->Cell($widths[6], 8, 'IMPORTE', 1, 1, 'C', true);
 }
 
 function remito_dibujar_fila($pdf, $y, $widths, $rowHeight, $fill, $item = null)
@@ -191,16 +199,20 @@ function remito_dibujar_fila($pdf, $y, $widths, $rowHeight, $fill, $item = null)
     $pdf->SetXY(12, $y);
 
     $cantidad = $item ? (string) $item['cantidad'] : '';
-    $modeloColor = $item ? remito_modelo_color($item) : '';
+    $marca = $item ? remito_marca($item) : '';
+    $modelo = $item ? remito_modelo($item) : '';
+    $color = $item ? remito_color($item) : '';
     $descripcion = $item ? trim((string) ($item['descripcion'] ?? '')) : '';
     $precio = $item ? money_pdf($item['precio']) : '';
     $importe = $item ? money_pdf(((float) $item['cantidad']) * ((float) $item['precio'])) : '';
 
     $pdf->Cell($widths[0], $rowHeight, utf8_decode($cantidad), 1, 0, 'C', true);
-    $pdf->Cell($widths[1], $rowHeight, utf8_decode(substr($modeloColor, 0, 46)), 1, 0, 'L', true);
-    $pdf->Cell($widths[2], $rowHeight, utf8_decode(substr($descripcion, 0, 22)), 1, 0, 'L', true);
-    $pdf->Cell($widths[3], $rowHeight, utf8_decode($precio), 1, 0, 'R', true);
-    $pdf->Cell($widths[4], $rowHeight, utf8_decode($importe), 1, 1, 'R', true);
+    $pdf->Cell($widths[1], $rowHeight, utf8_decode(substr($marca, 0, 20)), 1, 0, 'L', true);
+    $pdf->Cell($widths[2], $rowHeight, utf8_decode(substr($modelo, 0, 28)), 1, 0, 'L', true);
+    $pdf->Cell($widths[3], $rowHeight, utf8_decode(substr($color, 0, 14)), 1, 0, 'L', true);
+    $pdf->Cell($widths[4], $rowHeight, utf8_decode(substr($descripcion, 0, 22)), 1, 0, 'L', true);
+    $pdf->Cell($widths[5], $rowHeight, utf8_decode($precio), 1, 0, 'R', true);
+    $pdf->Cell($widths[6], $rowHeight, utf8_decode($importe), 1, 1, 'R', true);
 }
 
 $footerAssets = mayorista_pdf_footer_assets();
@@ -228,7 +240,7 @@ while ($row = mysqli_fetch_assoc($detalle)) {
 $totalVenta = round($totalVenta, 2);
 $totalCobrado = round((float) ($ventaData['abona'] ?? 0), 2);
 $totalCc = round(isset($ventaData['monto_cc']) ? (float) $ventaData['monto_cc'] : (float) ($ventaData['resto'] ?? 0), 2);
-$columnas = array(14, 83, 35, 28, 26);
+$columnas = array(12, 28, 38, 20, 36, 26, 26);
 $rowHeight = 6.6;
 $minRowsLastPage = 10;
 $maxRowsLastPage = 18;

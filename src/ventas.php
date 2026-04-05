@@ -162,7 +162,30 @@ include_once "includes/header.php";
                             <label class="badge-chip"><input type="radio" name="pago" value="2"> Crédito</label>
                             <label class="badge-chip"><input type="radio" name="pago" value="3"> Débito</label>
                             <label class="badge-chip"><input type="radio" name="pago" value="4"> Transferencia</label>
+                            <label class="badge-chip"><input type="radio" name="pago" value="5"> Cheque</label>
                         </div>
+                    </div>
+                    <div id="cheque_fields" class="border rounded p-3 mb-3" style="display:none;">
+                        <div class="form-row">
+                            <div class="form-group col-md-4">
+                                <label>Plazo del cheque</label>
+                                <select id="cheque_plazo_dias" class="form-control">
+                                    <option value="30">30 días</option>
+                                    <option value="60">60 días</option>
+                                    <option value="90">90 días</option>
+                                    <option value="120">120 días</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label>Fecha base</label>
+                                <input type="date" id="cheque_fecha_base" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label>Fecha esperada de depósito</label>
+                                <input type="date" id="cheque_fecha_deposito" class="form-control" value="<?php echo date('Y-m-d', strtotime('+30 days')); ?>">
+                            </div>
+                        </div>
+                        <small class="text-muted">El importe abonado con cheque no se contará como ingreso hasta que se confirme su depósito.</small>
                     </div>
                     <div class="form-group">
                         <label>Abona ahora</label>
@@ -171,7 +194,7 @@ include_once "includes/header.php";
                     <div class="form-group">
                         <label>Se carga a CC</label>
                         <input type="number" class="form-control form-control-modern" id="monto_cc" step="0.01" min="0" value="0">
-                        <small class="form-text text-muted">Podés definir manualmente cuánto va a cuenta corriente. El precio unitario de cada item se puede ajustar una sola vez por pedido.</small>
+                        <small class="form-text text-muted">Podés definir manualmente cuánto va a cuenta corriente. El precio unitario de cada item se puede ajustar libremente hasta generar la venta.</small>
                     </div>
                     <div class="form-group mb-0">
                         <label>Observación interna</label>

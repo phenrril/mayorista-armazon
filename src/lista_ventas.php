@@ -89,6 +89,7 @@ include_once "includes/header.php";
                             <th>Saldo CC cliente</th>
                             <th>Precio mod.</th>
                             <th>Fecha</th>
+                            <th>Editar</th>
                             <th>Factura</th>
                             <th>Recibo</th>
                         </tr>
@@ -121,6 +122,15 @@ include_once "includes/header.php";
                                 <td><?php echo mayorista_formatear_moneda($saldoCc); ?></td>
                                 <td><?php echo $precioModificado; ?></td>
                                 <td><?php echo date('d/m/Y H:i', strtotime($row['fecha'])); ?></td>
+                                <td>
+                                    <?php if (!$tieneFactura) { ?>
+                                        <a class="btn btn-sm btn-outline-primary" href="editar_venta.php?id=<?php echo (int) $row['id']; ?>">
+                                            Editar
+                                        </a>
+                                    <?php } else { ?>
+                                        <span class="text-muted small">Bloqueado</span>
+                                    <?php } ?>
+                                </td>
                                 <td>
                                     <?php if ($tieneFactura) { ?>
                                         <a class="btn btn-sm btn-outline-success" href="pdf/generar_factura_electronica.php?v=<?php echo (int) $row['id']; ?>" target="_blank">

@@ -31,6 +31,12 @@ function ajax_get_producto_query($conexion)
     if (mayorista_column_exists($conexion, 'producto', 'costo')) {
         $fields[] = 'costo';
     }
+    if (mayorista_column_exists($conexion, 'producto', 'modelo')) {
+        $fields[] = 'modelo';
+    }
+    if (mayorista_column_exists($conexion, 'producto', 'tipo_material')) {
+        $fields[] = 'tipo_material';
+    }
 
     return implode(', ', $fields);
 }
@@ -177,6 +183,18 @@ if (isset($_GET['pro'])) {
     $nombre = mysqli_real_escape_string($conexion, trim($_GET['pro']));
     $tipoVenta = mayorista_tipo_venta_valido($_GET['tipo_venta'] ?? 'minorista');
     $productoQuery = ajax_get_producto_query($conexion);
+    $condicionesBusqueda = array(
+        "codigo LIKE '%$nombre%'",
+        "descripcion LIKE '%$nombre%'",
+        "marca LIKE '%$nombre%'"
+    );
+
+    if (mayorista_column_exists($conexion, 'producto', 'modelo')) {
+        $condicionesBusqueda[] = "modelo LIKE '%$nombre%'";
+    }
+    if (mayorista_column_exists($conexion, 'producto', 'tipo_material')) {
+        $condicionesBusqueda[] = "tipo_material LIKE '%$nombre%'";
+    }
 
     $producto = mysqli_query(
         $conexion,
@@ -184,7 +202,7 @@ if (isset($_GET['pro'])) {
          FROM producto
          WHERE estado = 1
          AND existencia > 0
-         AND (codigo LIKE '%$nombre%' OR descripcion LIKE '%$nombre%')
+         AND (" . implode(' OR ', $condicionesBusqueda) . ")
          ORDER BY descripcion ASC
          LIMIT 20"
     );
@@ -198,6 +216,9 @@ if (isset($_GET['pro'])) {
             'precio_minorista' => (float) $row['precio'],
             'precio_mayorista' => isset($row['precio_mayorista']) ? (float) $row['precio_mayorista'] : (float) $row['precio'],
             'existencia' => (int) $row['existencia'],
+            'marca' => $row['marca'] ?? '',
+            'modelo' => $row['modelo'] ?? '',
+            'tipo_material' => $row['tipo_material'] ?? '',
             'tipo' => $row['tipo'] ?? 'receta',
             'costo' => isset($row['costo']) ? (int) $row['costo'] : 0,
         );
@@ -284,11 +305,6 @@ if (isset($_POST['update_precio'])) {
     $precioActual = round((float) $datos['precio_venta'], 2);
     if (abs($nuevo_precio - $precioActual) <= 0.009) {
         echo 'ok';
-        exit();
-    }
-
-    if (ajax_precio_detalle_editado($id_detalle)) {
-        echo 'limite_edicion';
         exit();
     }
 
@@ -423,6 +439,8 @@ if (isset($_POST['procesarVenta'])) {
     $metodo_pago = (int) ($_POST['metodo_pago'] ?? 1);
     $modoDespacho = trim($_POST['modo_despacho'] ?? 'A convenir');
     $observacion = mysqli_real_escape_string($conexion, trim($_POST['observacion'] ?? ''));
+    $chequePlazoDias = (int) ($_POST['cheque_plazo_dias'] ?? 30);
+    $chequeFechaDeposito = trim((string) ($_POST['cheque_fecha_deposito'] ?? ''));
     $fecha = date('Y-m-d H:i:s');
     if (!in_array($modoDespacho, mayorista_modos_despacho(), true)) {
         $modoDespacho = 'A convenir';
@@ -435,6 +453,18 @@ if (isset($_POST['procesarVenta'])) {
 
     if ($abona < 0) {
         ajax_json(array('mensaje' => 'error', 'detalle' => 'El importe abonado no puede ser negativo.'));
+    }
+
+    if ($metodo_pago === 5 && $abona > 0) {
+        if (!mayorista_schema_finanzas_operativas_listo($conexion)) {
+            ajax_json(array('mensaje' => 'error', 'detalle' => 'Primero tenés que aplicar la migración financiera desde configuración para usar cheques.'));
+        }
+        if (!in_array($chequePlazoDias, array(30, 60, 90, 120), true)) {
+            $chequePlazoDias = 30;
+        }
+        if (!mayorista_fecha_iso_valida($chequeFechaDeposito)) {
+            ajax_json(array('mensaje' => 'error', 'detalle' => 'La fecha esperada de depósito del cheque no es válida.'));
+        }
     }
 
     $cliente = mysqli_query($conexion, "SELECT idcliente FROM cliente WHERE idcliente = $id_cliente AND estado = 1");
@@ -512,7 +542,7 @@ if (isset($_POST['procesarVenta'])) {
 
         $idVenta = mysqli_insert_id($conexion);
 
-        if ($abona > 0) {
+        if ($abona > 0 && $metodo_pago !== 5) {
             $insertIngreso = mysqli_query(
                 $conexion,
                 "INSERT INTO ingresos(ingresos, fecha, id_venta, id_cliente, id_metodo)
@@ -604,6 +634,24 @@ if (isset($_POST['procesarVenta'])) {
             );
         }
 
+        if ($abona > 0 && $metodo_pago === 5) {
+            mayorista_registrar_compromiso_financiero($conexion, array(
+                'tipo' => 'cheque_recibido',
+                'id_cliente' => $id_cliente,
+                'id_venta' => $idVenta,
+                'id_metodo' => 5,
+                'monto_total' => $abona,
+                'saldo_pendiente' => $abona,
+                'estado' => 'pendiente_confirmacion',
+                'fecha_compromiso' => date('Y-m-d'),
+                'fecha_vencimiento' => $chequeFechaDeposito,
+                'fecha_deposito' => $chequeFechaDeposito,
+                'descripcion' => 'Cheque recibido venta #' . $idVenta . ' (' . $chequePlazoDias . ' dias)',
+                'observaciones' => $observacion,
+                'id_usuario' => $id_user,
+            ));
+        }
+
         if ($montoCc > 0) {
             $validacionCc = mayorista_validar_nuevo_cargo_cc($conexion, $id_cliente, $montoCc);
             if (!$validacionCc['permitido']) {
@@ -658,6 +706,7 @@ if (isset($_POST['procesarVenta'])) {
             'monto_cc' => $montoCc,
             'modo_despacho' => $modoDespacho,
             'saldo_cc_cliente' => $saldoCcCliente,
+            'metodo_pago' => $metodo_pago,
         ));
     } catch (Exception $e) {
         mysqli_rollback($conexion);
