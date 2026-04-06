@@ -120,6 +120,16 @@ include_once "includes/header.php";
             </div>
             <?php } ?>
 
+            <div class="row mt-3">
+                <div class="col-lg-4 col-md-6">
+                    <div class="form-group mb-0">
+                        <label>Fecha de venta</label>
+                        <input type="date" id="fecha_venta" class="form-control form-control-modern" value="<?php echo date('Y-m-d'); ?>" max="<?php echo date('Y-m-d'); ?>">
+                        <small class="form-text text-muted">Se permiten ventas con fecha pasada, pero no futura.</small>
+                    </div>
+                </div>
+            </div>
+
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <div class="cc-metric">

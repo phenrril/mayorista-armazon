@@ -5,6 +5,19 @@ require_once "includes/mayorista_helpers.php";
 
 function anular_alerta($icon, $title, $timer = 2000)
 {
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+        && strtolower((string) $_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    if ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(array(
+            'status' => $icon === 'success' ? 'success' : 'error',
+            'icon' => $icon,
+            'title' => $title,
+            'timer' => $timer,
+        ));
+        exit();
+    }
+
     echo "<script>Swal.fire({
         position: 'center',
         toast: false,

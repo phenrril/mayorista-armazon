@@ -3,6 +3,10 @@ session_start();
 include "../conexion.php";
 require_once "includes/mayorista_helpers.php";
 
+if (!($conexion instanceof mysqli)) {
+    exit('No se pudo conectar a la base de datos.');
+}
+
 if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
     header("Location: ../");
     exit();
@@ -90,6 +94,7 @@ include_once "includes/header.php";
                             <th>Precio mod.</th>
                             <th>Fecha</th>
                             <th>Editar</th>
+                            <th>Eliminar</th>
                             <th>Factura</th>
                             <th>Recibo</th>
                         </tr>
@@ -102,15 +107,7 @@ include_once "includes/header.php";
                                 $saldoCc = isset($row['saldo_cc_cliente']) ? (float) $row['saldo_cc_cliente'] : 0;
                                 $precioModificado = !empty($row['precio_modificado']) ? 'Si' : 'No';
 
-                                $facturaQuery = mysqli_query(
-                                    $conexion,
-                                    "SELECT id
-                                     FROM facturas_electronicas
-                                     WHERE id_venta = " . (int) $row['id'] . "
-                                     AND estado = 'aprobado'
-                                     LIMIT 1"
-                                );
-                                $tieneFactura = $facturaQuery && mysqli_num_rows($facturaQuery) > 0;
+                                $tieneFactura = mayorista_venta_tiene_factura_aprobada($conexion, (int) $row['id']);
                         ?>
                             <tr>
                                 <td data-order="<?php echo (int) $row['id']; ?>">#<?php echo (int) $row['id']; ?></td>
@@ -127,6 +124,18 @@ include_once "includes/header.php";
                                         <a class="btn btn-sm btn-outline-primary" href="editar_venta.php?id=<?php echo (int) $row['id']; ?>">
                                             Editar
                                         </a>
+                                    <?php } else { ?>
+                                        <span class="text-muted small">Bloqueado</span>
+                                    <?php } ?>
+                                </td>
+                                <td>
+                                    <?php if (!$tieneFactura) { ?>
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-danger js-anular-venta"
+                                            data-id="<?php echo (int) $row['id']; ?>">
+                                            Eliminar
+                                        </button>
                                     <?php } else { ?>
                                         <span class="text-muted small">Bloqueado</span>
                                     <?php } ?>
@@ -162,17 +171,17 @@ include_once "includes/header.php";
 <script>
 window.addEventListener('load', function () {
     var $ = window.jQuery;
-    if (!$ || !$.fn.DataTable) {
+    if (!$) {
         return;
     }
     var $table = $('#tbl');
-    if ($table.length && !$.fn.DataTable.isDataTable($table)) {
+    if ($.fn.DataTable && $table.length && !$.fn.DataTable.isDataTable($table)) {
         $table.DataTable({
             order: [[0, 'desc']],
             pageLength: 25,
             lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'Todos']],
             columnDefs: [
-                { targets: [9, 10, 11], orderable: false, searchable: false }
+                { targets: [9, 10, 11, 12], orderable: false, searchable: false }
             ],
             language: {
                 search: 'Buscar:',
@@ -191,6 +200,63 @@ window.addEventListener('load', function () {
             }
         });
     }
+
+    $(document).on('click', '.js-anular-venta', function () {
+        var idVenta = parseInt($(this).data('id'), 10);
+        if (!idVenta || !window.Swal) {
+            return;
+        }
+
+        Swal.fire({
+            icon: 'warning',
+            title: 'Eliminar venta',
+            text: 'Se restaurará el stock y se revertirán los movimientos asociados. Esta acción solo está disponible para ventas no facturadas.',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            reverseButtons: true
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            $.ajax({
+                url: 'anular.php',
+                type: 'POST',
+                dataType: 'json',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                data: {
+                    idanular: idVenta
+                },
+                success: function (response) {
+                    var icon = response && response.icon ? response.icon : 'success';
+                    var title = response && response.title ? response.title : 'Venta eliminada';
+                    var timer = response && response.timer ? response.timer : 2000;
+                    Swal.fire({
+                        icon: icon,
+                        title: title,
+                        showConfirmButton: false,
+                        timer: timer
+                    }).then(function () {
+                        if (response && response.status === 'success') {
+                            window.location.reload();
+                        }
+                    });
+                },
+                error: function (xhr) {
+                    var response = xhr.responseJSON || {};
+                    Swal.fire({
+                        icon: response.icon || 'error',
+                        title: response.title || 'No se pudo eliminar la venta',
+                        showConfirmButton: false,
+                        timer: response.timer || 3000
+                    });
+                }
+            });
+        });
+    });
 });
 </script>
 
