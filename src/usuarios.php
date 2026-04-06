@@ -31,7 +31,7 @@ if (!empty($_POST)) {
         $nombre = mysqli_real_escape_string($conexion, trim($_POST['nombre']));
         $email = mysqli_real_escape_string($conexion, trim($_POST['correo']));
         $user = mysqli_real_escape_string($conexion, trim($_POST['usuario']));
-        $clave = mysqli_real_escape_string($conexion, mayorista_hash_password($_POST['clave']));
+        $clave = mysqli_real_escape_string($conexion, mayorista_hash_password($_POST['clave'], $conexion));
         $query = mysqli_query($conexion, "SELECT * FROM usuario WHERE correo = '$email'");
         $result = mysqli_fetch_array($query);
         if ($result > 0) {
