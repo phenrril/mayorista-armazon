@@ -750,7 +750,7 @@ if (isset($_POST['cambio'])) {
     $nueva = (string) ($_POST['nueva'] ?? '');
     $verificar = mysqli_query($conexion, "SELECT clave FROM usuario WHERE idusuario = $id_user LIMIT 1");
     $usuario = $verificar ? mysqli_fetch_assoc($verificar) : null;
-    $passwordCheck = mayorista_verificar_password($actual, $usuario['clave'] ?? '');
+    $passwordCheck = mayorista_verificar_password($actual, $usuario['clave'] ?? '', $conexion);
 
     if (!$passwordCheck['valido']) {
         echo 'dif';

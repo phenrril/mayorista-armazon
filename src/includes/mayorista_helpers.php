@@ -65,12 +65,41 @@ function mayorista_es_admin($idUsuario)
     return (int) $idUsuario === 1;
 }
 
-function mayorista_hash_password($plainPassword)
+function mayorista_usuario_clave_max_length($conexion)
 {
-    return password_hash((string) $plainPassword, PASSWORD_DEFAULT);
+    if (!($conexion instanceof mysqli)) {
+        return 0;
+    }
+
+    $result = mysqli_query($conexion, "SHOW COLUMNS FROM `usuario` LIKE 'clave'");
+    $column = $result ? mysqli_fetch_assoc($result) : null;
+    if (!$column || empty($column['Type'])) {
+        return 0;
+    }
+
+    if (preg_match('/\((\d+)\)/', (string) $column['Type'], $matches)) {
+        return (int) $matches[1];
+    }
+
+    return 0;
 }
 
-function mayorista_verificar_password($plainPassword, $storedHash)
+function mayorista_password_hash_moderno_disponible($conexion)
+{
+    return mayorista_usuario_clave_max_length($conexion) >= 60;
+}
+
+function mayorista_hash_password($plainPassword, $conexion = null)
+{
+    $plainPassword = (string) $plainPassword;
+    if ($conexion instanceof mysqli && !mayorista_password_hash_moderno_disponible($conexion)) {
+        return md5($plainPassword);
+    }
+
+    return password_hash($plainPassword, PASSWORD_DEFAULT);
+}
+
+function mayorista_verificar_password($plainPassword, $storedHash, $conexion = null)
 {
     $plainPassword = (string) $plainPassword;
     $storedHash = trim((string) $storedHash);
@@ -83,13 +112,19 @@ function mayorista_verificar_password($plainPassword, $storedHash)
         $valido = password_verify($plainPassword, $storedHash);
         return array(
             'valido' => $valido,
-            'rehash' => $valido && password_needs_rehash($storedHash, PASSWORD_DEFAULT),
+            'rehash' => $valido
+                && $conexion instanceof mysqli
+                && mayorista_password_hash_moderno_disponible($conexion)
+                && password_needs_rehash($storedHash, PASSWORD_DEFAULT),
         );
     }
 
     $legacyHash = md5($plainPassword);
     $valido = hash_equals(strtolower($storedHash), $legacyHash);
-    return array('valido' => $valido, 'rehash' => $valido);
+    return array(
+        'valido' => $valido,
+        'rehash' => $valido && $conexion instanceof mysqli && mayorista_password_hash_moderno_disponible($conexion),
+    );
 }
 
 function mayorista_actualizar_password_usuario($conexion, $idUsuario, $plainPassword)
@@ -103,7 +138,7 @@ function mayorista_actualizar_password_usuario($conexion, $idUsuario, $plainPass
         return false;
     }
 
-    $hash = mysqli_real_escape_string($conexion, mayorista_hash_password($plainPassword));
+    $hash = mysqli_real_escape_string($conexion, mayorista_hash_password($plainPassword, $conexion));
     return mysqli_query($conexion, "UPDATE usuario SET clave = '$hash' WHERE idusuario = $idUsuario") !== false;
 }
 

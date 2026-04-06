@@ -89,7 +89,7 @@ if (!empty($_SESSION['active'])) {
                 } else {
                     $dato = mysqli_fetch_assoc($query);
                     if ($dato) {
-                        $passwordCheck = mayorista_verificar_password($clave, $dato['clave'] ?? '');
+                        $passwordCheck = mayorista_verificar_password($clave, $dato['clave'] ?? '', $conexion);
                         if (!$passwordCheck['valido']) {
                             $alert = '<div class="alert alert-danger" role="alert">
                             Usuario o Contraseña Incorrecta
