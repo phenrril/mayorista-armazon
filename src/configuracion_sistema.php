@@ -30,6 +30,9 @@ $importacion_productos_pendiente = !mayorista_importacion_productos_fue_ejecutad
 $importacion_productos_token = $importacion_productos_pendiente ? mayorista_generar_token_importacion_productos() : '';
 $importacion_clientes_pendiente = !mayorista_importacion_clientes_fue_ejecutada($conexion);
 $importacion_clientes_token = $importacion_clientes_pendiente ? mayorista_generar_token_importacion_clientes() : '';
+$cc_schema_listo = mayorista_table_exists($conexion, 'cuenta_corriente') && mayorista_table_exists($conexion, 'movimientos_cc');
+$reset_cc_masivo_pendiente = $cc_schema_listo && !mayorista_reset_cc_masivo_fue_ejecutado($conexion);
+$reset_cc_masivo_token = $reset_cc_masivo_pendiente ? mayorista_generar_token_reset_cc_masivo() : '';
 ?>
 
 <div class="config-container fade-in-container">
@@ -171,6 +174,37 @@ $importacion_clientes_token = $importacion_clientes_pendiente ? mayorista_genera
         </div>
     </div>
 
+    <?php if ($reset_cc_masivo_pendiente) { ?>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card card-modern mb-4 border-danger" id="cardResetCuentasCorrientes">
+                <div class="card-header bg-danger text-white">
+                    <i class="fas fa-file-invoice-dollar mr-2"></i> Cuentas corrientes en cero (una sola vez)
+                </div>
+                <div class="card-body card-body-modern">
+                    <p class="mb-3">
+                        <i class="fas fa-exclamation-triangle text-danger mr-2"></i>
+                        Elimina <strong>todos</strong> los movimientos de cuenta corriente y deja el saldo en <strong>0</strong> para todos los clientes. No modifica ventas ni otros datos.
+                    </p>
+                    <div id="resultado-reset-cc-masivo" class="mb-3"></div>
+                    <button
+                        type="button"
+                        class="btn btn-danger"
+                        id="btnResetCuentasCorrientes"
+                        data-endpoint="ejecutar_reset_cuentas_corrientes.php"
+                        data-token="<?php echo htmlspecialchars($reset_cc_masivo_token, ENT_QUOTES, 'UTF-8'); ?>"
+                    >
+                        <i class="fas fa-eraser mr-2"></i> Poner todas las cuentas corrientes en cero
+                    </button>
+                    <small class="text-muted d-block mt-3">
+                        Acción irreversible. El botón desaparece al completarse correctamente.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php } ?>
+
     <?php 
     // Verificar si el sistema de facturación ya está instalado
     $facturacion_instalada = file_exists(__DIR__ . '/../.facturacion_installed');
@@ -283,6 +317,7 @@ window.addEventListener('load', function() {
     initMigracionFinanzas();
     initImportacionProductos();
     initImportacionClientes();
+    initResetCuentasCorrientes();
     initInstalador();
 });
 
@@ -892,6 +927,103 @@ function ejecutarImportacionProductos($button, file) {
                 : 'Error al ejecutar la importación.';
             $('#resultado-importacion-productos').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
             $button.prop('disabled', false).html(textoOriginal);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
+}
+
+function initResetCuentasCorrientes() {
+    const $button = $('#btnResetCuentasCorrientes');
+    if ($button.length === 0) {
+        return;
+    }
+
+    $button.on('click', function() {
+        Swal.fire({
+            title: 'Confirmar puesta en cero',
+            html: `
+                <div class="text-left">
+                    <p>Se borrarán todos los movimientos de cuenta corriente y los saldos quedarán en cero para todos los clientes.</p>
+                    <p class="mb-0 text-danger"><strong>Esta acción no se puede deshacer.</strong></p>
+                    <p class="mt-3 mb-0">Para continuar escribí exactamente: <code>PONER CC EN CERO</code></p>
+                </div>
+            `,
+            icon: 'warning',
+            input: 'text',
+            inputLabel: 'Frase de confirmación',
+            inputPlaceholder: 'PONER CC EN CERO',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-check mr-2"></i>Ejecutar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            allowOutsideClick: false,
+            inputValidator: function(value) {
+                if (value !== 'PONER CC EN CERO') {
+                    return 'La frase no coincide exactamente.';
+                }
+            }
+        }).then((result) => {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            ejecutarResetCuentasCorrientes($button);
+        });
+    });
+}
+
+function ejecutarResetCuentasCorrientes($button) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const htmlOriginal = '<i class="fas fa-eraser mr-2"></i> Poner todas las cuentas corrientes en cero';
+
+    $button.prop('disabled', true);
+    $button.html('<i class="fas fa-spinner fa-spin mr-2"></i> Ejecutando...');
+    $('#resultado-reset-cc-masivo').html('');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            csrf_token: token
+        },
+        success: function(response) {
+            if (!response || !response.success) {
+                const message = response && response.message ? response.message : 'No se pudo completar la operacion.';
+                $('#resultado-reset-cc-masivo').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                $button.prop('disabled', false).html(htmlOriginal);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            $('#resultado-reset-cc-masivo').html('<div class="alert alert-success" role="alert">' + response.message + '</div>');
+            $('#cardResetCuentasCorrientes').slideUp(250);
+
+            Swal.fire({
+                icon: 'success',
+                title: response.already_applied ? 'Ya estaba aplicado' : 'Listo',
+                text: response.message,
+                confirmButtonColor: '#198754'
+            });
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Error al ejecutar la operacion.';
+            $('#resultado-reset-cc-masivo').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            $button.prop('disabled', false).html(htmlOriginal);
             Swal.fire({
                 icon: 'error',
                 title: 'Error',

@@ -370,6 +370,35 @@ function mayorista_invalidar_token_importacion_clientes()
     }
 }
 
+function mayorista_generar_token_reset_cc_masivo()
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return '';
+    }
+
+    if (empty($_SESSION['reset_cc_masivo_token']) || !is_string($_SESSION['reset_cc_masivo_token'])) {
+        $_SESSION['reset_cc_masivo_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['reset_cc_masivo_token'];
+}
+
+function mayorista_validar_token_reset_cc_masivo($token)
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['reset_cc_masivo_token'])) {
+        return false;
+    }
+
+    return hash_equals($_SESSION['reset_cc_masivo_token'], (string) $token);
+}
+
+function mayorista_invalidar_token_reset_cc_masivo()
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['reset_cc_masivo_token']);
+    }
+}
+
 function mayorista_tipos_material_producto()
 {
     return array('Acetato', 'Tr90', 'Metal', 'Inyeccion');
@@ -585,6 +614,43 @@ function mayorista_marcar_importacion_clientes_ejecutada($conexion)
 
     $sql = "INSERT INTO sistema_flags (clave, valor)
         VALUES ('importacion_clientes_xlsx_2026', '1')
+        ON DUPLICATE KEY UPDATE
+            valor = VALUES(valor),
+            updated_at = CURRENT_TIMESTAMP";
+
+    return mysqli_query($conexion, $sql) !== false;
+}
+
+function mayorista_reset_cc_masivo_fue_ejecutado($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $query = mysqli_query(
+        $conexion,
+        "SELECT valor
+         FROM sistema_flags
+         WHERE clave = 'reset_cuentas_corrientes_masivo_2026'
+         LIMIT 1"
+    );
+
+    if (!$query || mysqli_num_rows($query) === 0) {
+        return false;
+    }
+
+    $row = mysqli_fetch_assoc($query);
+    return isset($row['valor']) && $row['valor'] === '1';
+}
+
+function mayorista_marcar_reset_cc_masivo_ejecutado($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $sql = "INSERT INTO sistema_flags (clave, valor)
+        VALUES ('reset_cuentas_corrientes_masivo_2026', '1')
         ON DUPLICATE KEY UPDATE
             valor = VALUES(valor),
             updated_at = CURRENT_TIMESTAMP";
