@@ -65,6 +65,77 @@ function mayorista_es_admin($idUsuario)
     return (int) $idUsuario === 1;
 }
 
+function mayorista_hash_password($plainPassword)
+{
+    return password_hash((string) $plainPassword, PASSWORD_DEFAULT);
+}
+
+function mayorista_verificar_password($plainPassword, $storedHash)
+{
+    $plainPassword = (string) $plainPassword;
+    $storedHash = trim((string) $storedHash);
+    if ($storedHash === '') {
+        return array('valido' => false, 'rehash' => false);
+    }
+
+    $hashInfo = password_get_info($storedHash);
+    if (!empty($hashInfo['algo'])) {
+        $valido = password_verify($plainPassword, $storedHash);
+        return array(
+            'valido' => $valido,
+            'rehash' => $valido && password_needs_rehash($storedHash, PASSWORD_DEFAULT),
+        );
+    }
+
+    $legacyHash = md5($plainPassword);
+    $valido = hash_equals(strtolower($storedHash), $legacyHash);
+    return array('valido' => $valido, 'rehash' => $valido);
+}
+
+function mayorista_actualizar_password_usuario($conexion, $idUsuario, $plainPassword)
+{
+    if (!($conexion instanceof mysqli)) {
+        return false;
+    }
+
+    $idUsuario = (int) $idUsuario;
+    if ($idUsuario <= 0) {
+        return false;
+    }
+
+    $hash = mysqli_real_escape_string($conexion, mayorista_hash_password($plainPassword));
+    return mysqli_query($conexion, "UPDATE usuario SET clave = '$hash' WHERE idusuario = $idUsuario") !== false;
+}
+
+function mayorista_generar_token_venta()
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return '';
+    }
+
+    if (empty($_SESSION['venta_token']) || !is_string($_SESSION['venta_token'])) {
+        $_SESSION['venta_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['venta_token'];
+}
+
+function mayorista_validar_token_venta($token)
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['venta_token'])) {
+        return false;
+    }
+
+    return hash_equals($_SESSION['venta_token'], (string) $token);
+}
+
+function mayorista_invalidar_token_venta()
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['venta_token']);
+    }
+}
+
 function mayorista_generar_token_reset_sistema()
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {

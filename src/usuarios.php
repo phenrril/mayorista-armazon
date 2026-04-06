@@ -1,10 +1,16 @@
 <?php 
 session_start();
 include "../conexion.php";
+require_once "includes/mayorista_helpers.php";
 if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
     header("Location: ../");
     exit();
 }
+if (!($conexion instanceof mysqli)) {
+    header("Location: ../");
+    exit();
+}
+/** @var mysqli $conexion */
 $id_user = $_SESSION['idUser'];
 $permiso = "usuarios";
 $permiso_escaped = mysqli_real_escape_string($conexion, $permiso);
@@ -22,18 +28,18 @@ if (!empty($_POST)) {
         Todo los campos son obligatorios
         </div>';
     } else {
-        $nombre = $_POST['nombre'];
-        $email = $_POST['correo'];
-        $user = $_POST['usuario'];
-        $clave = md5($_POST['clave']);
-        $query = mysqli_query($conexion, "SELECT * FROM usuario where correo = '$email'");
+        $nombre = mysqli_real_escape_string($conexion, trim($_POST['nombre']));
+        $email = mysqli_real_escape_string($conexion, trim($_POST['correo']));
+        $user = mysqli_real_escape_string($conexion, trim($_POST['usuario']));
+        $clave = mysqli_real_escape_string($conexion, mayorista_hash_password($_POST['clave']));
+        $query = mysqli_query($conexion, "SELECT * FROM usuario WHERE correo = '$email'");
         $result = mysqli_fetch_array($query);
         if ($result > 0) {
             $alert = '<div class="alert alert-warning" role="alert">
                         El correo ya existe
                     </div>';
         } else {
-            $query_insert = mysqli_query($conexion, "INSERT INTO usuario(nombre,correo,usuario,clave) values ('$nombre', '$email', '$user', '$clave')");
+            $query_insert = mysqli_query($conexion, "INSERT INTO usuario(nombre,correo,usuario,clave) VALUES ('$nombre', '$email', '$user', '$clave')");
             if ($query_insert) {
                 $alert = '<div class="alert alert-primary" role="alert">
                             Usuario registrado

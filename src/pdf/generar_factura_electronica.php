@@ -11,9 +11,21 @@ if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
 }
 
 require_once '../../conexion.php';
+require_once '../includes/mayorista_helpers.php';
 require_once 'fpdf/fpdf.php';
 require_once 'pdf_footer_helper.php';
 require_once '../classes/FacturacionElectronica.php';
+
+if (!($conexion instanceof mysqli)) {
+    header('HTTP/1.1 500 Internal Server Error');
+    die('No se pudo conectar a la base de datos.');
+}
+
+$id_user = (int) $_SESSION['idUser'];
+if (!mayorista_tiene_permiso($conexion, $id_user, array('ventas'))) {
+    header('HTTP/1.1 403 Forbidden');
+    die('No tenés permisos para acceder a la factura electrónica.');
+}
 
 // Verificar parámetros
 if (!isset($_GET['v']) || empty($_GET['v'])) {
@@ -21,6 +33,12 @@ if (!isset($_GET['v']) || empty($_GET['v'])) {
 }
 
 $id_venta = intval($_GET['v']);
+$query_venta = mysqli_query($conexion, "SELECT * FROM ventas WHERE id = $id_venta LIMIT 1");
+$venta = $query_venta ? mysqli_fetch_assoc($query_venta) : null;
+if (!$venta) {
+    header('HTTP/1.1 404 Not Found');
+    die('La venta indicada no existe');
+}
 
 // Obtener datos de la factura electrónica
 $query_factura = mysqli_query($conexion, 
@@ -41,10 +59,6 @@ $factura = mysqli_fetch_assoc($query_factura);
 if ($factura['estado'] !== 'aprobado') {
     die('La factura no está aprobada. Estado: ' . $factura['estado']);
 }
-
-// Obtener datos de la venta
-$query_venta = mysqli_query($conexion, "SELECT * FROM ventas WHERE id = $id_venta");
-$venta = mysqli_fetch_assoc($query_venta);
 
 // Obtener datos del cliente
 $id_cliente = $venta['id_cliente'];

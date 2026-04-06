@@ -5,6 +5,8 @@ function formatCurrency(value) {
     });
 }
 
+let ventaEnProceso = false;
+
 function showCenteredAlert(options) {
     return Swal.fire(Object.assign({
         position: 'center',
@@ -613,9 +615,14 @@ $(function () {
     actualizarCamposCheque();
 
     $('#btn_generar').on('click', function () {
+        if (ventaEnProceso) {
+            return;
+        }
+
         const idCliente = $('#idcliente').val();
         const metodoPago = $('input[name="pago"]:checked').val();
         const abona = parseFloat($('#abona').val()) || 0;
+        const btnGenerar = $('#btn_generar');
 
         if (!idCliente) {
             showCenteredAlert({
@@ -625,6 +632,9 @@ $(function () {
             });
             return;
         }
+
+        ventaEnProceso = true;
+        btnGenerar.prop('disabled', true).addClass('disabled');
 
         $.ajax({
             url: 'ajax.php',
@@ -638,6 +648,7 @@ $(function () {
                 metodo_pago: metodoPago,
                 modo_despacho: $('#modo_despacho').val(),
                 observacion: $('#observacion_venta').val(),
+                venta_token: $('#venta_token').val(),
                 cheque_plazo_dias: $('#cheque_plazo_dias').val(),
                 cheque_fecha_base: $('#cheque_fecha_base').val(),
                 cheque_fecha_deposito: $('#cheque_fecha_deposito').val()
@@ -673,6 +684,10 @@ $(function () {
                     title: detalle,
                     timer: 3200
                 });
+            },
+            complete: function () {
+                ventaEnProceso = false;
+                btnGenerar.prop('disabled', false).removeClass('disabled');
             }
         });
     });

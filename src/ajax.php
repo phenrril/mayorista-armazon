@@ -9,6 +9,13 @@ if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
     exit();
 }
 
+if (!($conexion instanceof mysqli)) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(array('error' => 'No se pudo conectar a la base de datos'));
+    exit();
+}
+/** @var mysqli $conexion */
+
 $id_user = (int) $_SESSION['idUser'];
 
 function ajax_json($payload, $statusCode = 200)
@@ -435,6 +442,7 @@ if (isset($_POST['action'])) {
 if (isset($_POST['procesarVenta'])) {
     $id_cliente = (int) $_POST['id'];
     $abona = round((float) $_POST['abona'], 2);
+    $ventaToken = trim((string) ($_POST['venta_token'] ?? ''));
     $tipoVenta = mayorista_tipo_venta_valido($_POST['tipo_venta'] ?? 'minorista');
     $metodo_pago = (int) ($_POST['metodo_pago'] ?? 1);
     $modoDespacho = trim($_POST['modo_despacho'] ?? 'A convenir');
@@ -449,6 +457,10 @@ if (isset($_POST['procesarVenta'])) {
 
     if ($id_cliente <= 0) {
         ajax_json(array('mensaje' => 'error', 'detalle' => 'Selecciona un cliente válido.'));
+    }
+
+    if (!mayorista_validar_token_venta($ventaToken)) {
+        ajax_json(array('mensaje' => 'error', 'detalle' => 'La venta ya fue procesada o la sesion expiro. Recarga la pagina antes de intentar nuevamente.'), 409);
     }
 
     if ($abona < 0) {
@@ -494,6 +506,10 @@ if (isset($_POST['procesarVenta'])) {
         $items[] = $row;
         $total += (float) $row['total'];
     }
+
+    usort($items, function ($a, $b) {
+        return ((int) $a['id_producto']) <=> ((int) $b['id_producto']);
+    });
 
     $total = round($total, 2);
     if ($abona > $total) {
@@ -557,16 +573,29 @@ if (isset($_POST['procesarVenta'])) {
             $idProducto = (int) $item['id_producto'];
             $cantidad = (int) $item['cantidad'];
             $precioAplicado = round((float) $item['precio_venta'], 2);
-            $precioBase = round(mayorista_precio_producto($item, $tipoVenta), 2);
+            $productoActualQuery = mysqli_query(
+                $conexion,
+                "SELECT $queryFields
+                 FROM producto
+                 WHERE codproducto = $idProducto AND estado = 1
+                 LIMIT 1
+                 FOR UPDATE"
+            );
+            $productoActual = $productoActualQuery ? mysqli_fetch_assoc($productoActualQuery) : null;
+            if (!$productoActual) {
+                throw new Exception('El producto ya no está disponible.');
+            }
+
+            $precioBase = round(mayorista_precio_producto($productoActual, $tipoVenta), 2);
             $precioPersonalizado = abs($precioAplicado - $precioBase) > 0.009 ? $precioAplicado : null;
 
             if ($precioPersonalizado !== null) {
                 $precioModificado = 1;
             }
 
-            $stockDisponible = (int) $item['existencia'];
+            $stockDisponible = (int) $productoActual['existencia'];
             if ($stockDisponible < $cantidad) {
-                throw new Exception('Stock insuficiente para ' . $item['descripcion']);
+                throw new Exception('Stock insuficiente para ' . ($productoActual['descripcion'] ?? $item['descripcion']));
             }
 
             $camposDetalle = array(
@@ -613,15 +642,16 @@ if (isset($_POST['procesarVenta'])) {
                 throw new Exception('No se pudo guardar el detalle de venta: ' . mysqli_error($conexion));
             }
 
-            $stockNuevo = $stockDisponible - $cantidad;
             $actualizarStock = mysqli_query(
                 $conexion,
                 "UPDATE producto
-                 SET existencia = $stockNuevo, estado = IF($stockNuevo <= 0, 0, estado)
-                 WHERE codproducto = $idProducto"
+                 SET existencia = existencia - $cantidad,
+                     estado = IF(existencia - $cantidad <= 0, 0, estado)
+                 WHERE codproducto = $idProducto
+                 AND existencia >= $cantidad"
             );
 
-            if (!$actualizarStock) {
+            if (!$actualizarStock || mysqli_affected_rows($conexion) !== 1) {
                 throw new Exception('No se pudo actualizar el stock: ' . mysqli_error($conexion));
             }
         }
@@ -695,6 +725,7 @@ if (isset($_POST['procesarVenta'])) {
             }
         }
 
+        mayorista_invalidar_token_venta();
         ajax_limpiar_temporales($conexion, $id_user);
         mysqli_commit($conexion);
 
@@ -715,15 +746,18 @@ if (isset($_POST['procesarVenta'])) {
 }
 
 if (isset($_POST['cambio'])) {
-    $actual = md5($_POST['actual']);
-    $nueva = md5($_POST['nueva']);
-    $verificar = mysqli_query($conexion, "SELECT * FROM usuario WHERE clave = '$actual' AND idusuario = $id_user");
-    if (mysqli_num_rows($verificar) > 0) {
-        $query = mysqli_query($conexion, "UPDATE usuario SET clave = '$nueva' WHERE idusuario = $id_user");
-        echo $query ? 'ok' : 'error';
-    } else {
+    $actual = (string) ($_POST['actual'] ?? '');
+    $nueva = (string) ($_POST['nueva'] ?? '');
+    $verificar = mysqli_query($conexion, "SELECT clave FROM usuario WHERE idusuario = $id_user LIMIT 1");
+    $usuario = $verificar ? mysqli_fetch_assoc($verificar) : null;
+    $passwordCheck = mayorista_verificar_password($actual, $usuario['clave'] ?? '');
+
+    if (!$passwordCheck['valido']) {
         echo 'dif';
+        exit();
     }
+
+    echo mayorista_actualizar_password_usuario($conexion, $id_user, $nueva) ? 'ok' : 'error';
     exit();
 }
 

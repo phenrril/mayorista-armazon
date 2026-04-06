@@ -7,6 +7,11 @@ function mayorista_get_api_key()
         return trim($apiKey);
     }
 
-    return 'cambiar-esta-api-key-en-produccion';
+    return '';
+}
+
+function mayorista_api_key_configurada()
+{
+    return mayorista_get_api_key() !== '';
 }
 

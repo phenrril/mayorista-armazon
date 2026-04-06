@@ -33,6 +33,7 @@ if (!empty($_SESSION['active'])) {
             </div>';
         } else {
             require_once "conexion.php";
+            require_once "src/includes/mayorista_helpers.php";
             
             // Verificar si hubo error de conexión
             if (isset($GLOBALS['db_connection_error'])) {
@@ -75,8 +76,8 @@ if (!empty($_SESSION['active'])) {
             } elseif ($conexion && is_object($conexion)) {
                 // Validar que $conexion es un objeto mysqli válido
                 $user = mysqli_real_escape_string($conexion, $_POST['usuario']);
-                $clave = md5(mysqli_real_escape_string($conexion, $_POST['clave']));
-                $query = mysqli_query($conexion, "SELECT * FROM usuario WHERE usuario = '$user' AND clave = '$clave' AND estado = 1");
+                $clave = (string) ($_POST['clave'] ?? '');
+                $query = mysqli_query($conexion, "SELECT * FROM usuario WHERE usuario = '$user' AND estado = 1 LIMIT 1");
                 
                 // Verificar si la consulta se ejecutó correctamente
                 if ($query === false) {
@@ -86,16 +87,27 @@ if (!empty($_SESSION['active'])) {
                     // Log de error en consola del navegador
                     echo '<script>console.error("SQL query error:", ' . json_encode(mysqli_error($conexion)) . ', "Consulta:", ' . json_encode("SELECT * FROM usuario WHERE usuario = '[sanitizado]' AND clave = MD5('[sanitizado]') AND estado = 1") . ');</script>';
                 } else {
-                    $resultado = mysqli_num_rows($query);
-                    if ($resultado > 0) {
-                        $dato = mysqli_fetch_array($query);
-                        $_SESSION['active'] = true;
-                        $_SESSION['idUser'] = $dato['idusuario'];
-                        $_SESSION['nombre'] = $dato['nombre'];
-                        $_SESSION['user'] = $dato['usuario'];
-                        mysqli_close($conexion);
-                        header('location: src/');
-                        exit();
+                    $dato = mysqli_fetch_assoc($query);
+                    if ($dato) {
+                        $passwordCheck = mayorista_verificar_password($clave, $dato['clave'] ?? '');
+                        if (!$passwordCheck['valido']) {
+                            $alert = '<div class="alert alert-danger" role="alert">
+                            Usuario o Contraseña Incorrecta
+                            </div>';
+                            session_destroy();
+                        } else {
+                            if ($passwordCheck['rehash']) {
+                                mayorista_actualizar_password_usuario($conexion, (int) $dato['idusuario'], $clave);
+                            }
+
+                            $_SESSION['active'] = true;
+                            $_SESSION['idUser'] = $dato['idusuario'];
+                            $_SESSION['nombre'] = $dato['nombre'];
+                            $_SESSION['user'] = $dato['usuario'];
+                            mysqli_close($conexion);
+                            header('location: src/');
+                            exit();
+                        }
                     } else {
                         $alert = '<div class="alert alert-danger" role="alert">
                         Usuario o Contraseña Incorrecta

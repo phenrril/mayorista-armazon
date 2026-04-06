@@ -10,6 +10,17 @@ require_once '../includes/mayorista_helpers.php';
 require_once 'fpdf/fpdf.php';
 require_once 'pdf_footer_helper.php';
 
+if (!($conexion instanceof mysqli)) {
+    header('HTTP/1.1 500 Internal Server Error');
+    exit('No se pudo conectar a la base de datos');
+}
+
+$id_user = (int) $_SESSION['idUser'];
+if (!mayorista_tiene_permiso($conexion, $id_user, array('ventas'))) {
+    header('HTTP/1.1 403 Forbidden');
+    exit('No tenés permisos para generar este comprobante');
+}
+
 $idVenta = isset($_GET['v']) ? (int) $_GET['v'] : 0;
 $idCliente = isset($_GET['cl']) ? (int) $_GET['cl'] : 0;
 
@@ -61,6 +72,7 @@ $venta = mysqli_query(
 
 $ventaData = $venta ? mysqli_fetch_assoc($venta) : null;
 if (!$ventaData) {
+    header('HTTP/1.1 404 Not Found');
     exit('Venta no encontrada');
 }
 
