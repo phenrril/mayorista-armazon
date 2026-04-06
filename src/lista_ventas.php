@@ -113,7 +113,7 @@ include_once "includes/header.php";
                                 $tieneFactura = $facturaQuery && mysqli_num_rows($facturaQuery) > 0;
                         ?>
                             <tr>
-                                <td>#<?php echo (int) $row['id']; ?></td>
+                                <td data-order="<?php echo (int) $row['id']; ?>">#<?php echo (int) $row['id']; ?></td>
                                 <td><?php echo htmlspecialchars($row['nombre'] ?: 'Consumidor final'); ?></td>
                                 <td><?php echo $tipo; ?></td>
                                 <td><?php echo mayorista_formatear_moneda($row['total']); ?></td>
@@ -121,7 +121,7 @@ include_once "includes/header.php";
                                 <td><?php echo mayorista_formatear_moneda($montoCc); ?></td>
                                 <td><?php echo mayorista_formatear_moneda($saldoCc); ?></td>
                                 <td><?php echo $precioModificado; ?></td>
-                                <td><?php echo date('d/m/Y H:i', strtotime($row['fecha'])); ?></td>
+                                <td data-order="<?php echo (int) strtotime($row['fecha']); ?>"><?php echo date('d/m/Y H:i', strtotime($row['fecha'])); ?></td>
                                 <td>
                                     <?php if (!$tieneFactura) { ?>
                                         <a class="btn btn-sm btn-outline-primary" href="editar_venta.php?id=<?php echo (int) $row['id']; ?>">
@@ -158,5 +158,40 @@ include_once "includes/header.php";
 </div>
 
 <script src="../assets/js/facturacion.js"></script>
+
+<script>
+window.addEventListener('load', function () {
+    var $ = window.jQuery;
+    if (!$ || !$.fn.DataTable) {
+        return;
+    }
+    var $table = $('#tbl');
+    if ($table.length && !$.fn.DataTable.isDataTable($table)) {
+        $table.DataTable({
+            order: [[0, 'desc']],
+            pageLength: 25,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'Todos']],
+            columnDefs: [
+                { targets: [9, 10, 11], orderable: false, searchable: false }
+            ],
+            language: {
+                search: 'Buscar:',
+                lengthMenu: 'Mostrar _MENU_ ventas',
+                info: 'Mostrando _START_ a _END_ de _TOTAL_ ventas',
+                infoEmpty: 'Sin ventas para mostrar',
+                infoFiltered: '(filtrado de _MAX_ ventas)',
+                zeroRecords: 'No hay coincidencias',
+                emptyTable: 'No hay ventas registradas',
+                paginate: {
+                    first: 'Primera',
+                    last: 'Última',
+                    next: 'Siguiente',
+                    previous: 'Anterior'
+                }
+            }
+        });
+    }
+});
+</script>
 
 <?php include_once "includes/footer.php"; ?>

@@ -10,7 +10,8 @@ if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
 }
 
 $id_user = (int) $_SESSION['idUser'];
-mayorista_requiere_permiso($conexion, $id_user, array('api_config', 'configuracion'));
+// Solo permiso explícito de API: "configuracion" no alcanza (evita ver claves sin rol API).
+mayorista_requiere_permiso($conexion, $id_user, array('api_config'));
 
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
