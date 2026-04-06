@@ -15,6 +15,22 @@ function mayorista_table_exists($conexion, $table)
     return $result && mysqli_num_rows($result) > 0;
 }
 
+/**
+ * Indica si debe mostrarse un enlace del menú lateral para el usuario actual.
+ * Requiere sesión válida; sin conexión a BD no se filtra (compat. con includes mínimos).
+ */
+function mayorista_nav_link_visible($conexion, $idUsuario, $permisos)
+{
+    $idUsuario = (int) $idUsuario;
+    if ($idUsuario <= 0) {
+        return false;
+    }
+    if (!($conexion instanceof mysqli) || !function_exists('mayorista_tiene_permiso')) {
+        return true;
+    }
+    return mayorista_tiene_permiso($conexion, $idUsuario, (array) $permisos);
+}
+
 function mayorista_tiene_permiso($conexion, $idUsuario, $permisos)
 {
     $idUsuario = (int) $idUsuario;
@@ -475,6 +491,103 @@ function mayorista_requiere_permiso($conexion, $idUsuario, $permisos)
     if (!mayorista_tiene_permiso($conexion, $idUsuario, $permisos)) {
         header("Location: permisos.php");
         exit();
+    }
+}
+
+/**
+ * Catálogo de permisos asignables desde rol.php (excluye módulos retirados: historia clínica, calendario, cristales).
+ * Cada ítem usa `token` como valor del formulario; puede expandirse a varios nombres en base de datos.
+ *
+ * @return array<int, array{titulo: string, items: array<int, array<string, mixed>>}>
+ */
+function mayorista_permisos_catalogo_para_rol()
+{
+    return array(
+        array(
+            'titulo' => 'Administración y acceso',
+            'items' => array(
+                array('token' => 'configuracion', 'etiqueta' => 'Configuración del sistema', 'icon' => 'cogs'),
+                array('token' => 'usuarios', 'etiqueta' => 'Gestión de usuarios', 'icon' => 'users-cog'),
+                array('token' => 'api_config', 'etiqueta' => 'API e integraciones', 'icon' => 'plug'),
+            ),
+        ),
+        array(
+            'titulo' => 'Clientes y cobranzas',
+            'items' => array(
+                array('token' => 'clientes', 'etiqueta' => 'Clientes', 'icon' => 'users'),
+                array('token' => 'cuenta_corriente', 'etiqueta' => 'Cuenta corriente', 'icon' => 'file-invoice-dollar'),
+            ),
+        ),
+        array(
+            'titulo' => 'Stock y ventas',
+            'items' => array(
+                array('token' => 'productos', 'etiqueta' => 'Productos', 'icon' => 'glasses'),
+                array('token' => 'nueva_venta', 'etiqueta' => 'Nueva venta', 'icon' => 'cart-plus'),
+                array('token' => 'ventas', 'etiqueta' => 'Listado y edición de ventas', 'icon' => 'receipt'),
+            ),
+        ),
+        array(
+            'titulo' => 'Análisis, reportes y tesorería',
+            'items' => array(
+                array('token' => 'estadisticas', 'etiqueta' => 'Estadísticas', 'icon' => 'chart-line'),
+                array(
+                    'token' => '__reportes_unificado__',
+                    'etiqueta' => 'Reportes',
+                    'icon' => 'chart-bar',
+                    'expandir_a' => array('reporte', 'reportes'),
+                ),
+                array('token' => 'reporte_costo', 'etiqueta' => 'Reporte de costos', 'icon' => 'balance-scale'),
+                array('token' => 'tesoreria', 'etiqueta' => 'Tesorería (movimientos manuales, cheques)', 'icon' => 'university'),
+            ),
+        ),
+    );
+}
+
+/**
+ * @return array<string, array<int, string>> token del formulario => nombres en tabla permisos
+ */
+function mayorista_permisos_tokens_a_nombres_rol()
+{
+    $map = array();
+    foreach (mayorista_permisos_catalogo_para_rol() as $grupo) {
+        foreach ($grupo['items'] as $item) {
+            $token = $item['token'];
+            if (!empty($item['expandir_a']) && is_array($item['expandir_a'])) {
+                $map[$token] = array_values($item['expandir_a']);
+            } else {
+                $map[$token] = array($token);
+            }
+        }
+    }
+    return $map;
+}
+
+/**
+ * @return string[]
+ */
+function mayorista_permisos_nombres_gestionables_rol()
+{
+    $nombres = array();
+    foreach (mayorista_permisos_tokens_a_nombres_rol() as $lista) {
+        $nombres = array_merge($nombres, $lista);
+    }
+    return array_values(array_unique($nombres));
+}
+
+/**
+ * Inserta en `permisos` las filas del catálogo que aún no existan.
+ */
+function mayorista_asegurar_permisos_catalogo_rol($conexion)
+{
+    if (!$conexion || !is_object($conexion)) {
+        return;
+    }
+    foreach (mayorista_permisos_nombres_gestionables_rol() as $nombre) {
+        $esc = mysqli_real_escape_string($conexion, $nombre);
+        $sql = "INSERT INTO permisos (nombre)
+            SELECT '$esc'
+            WHERE NOT EXISTS (SELECT 1 FROM permisos WHERE nombre = '$esc')";
+        mysqli_query($conexion, $sql);
     }
 }
 

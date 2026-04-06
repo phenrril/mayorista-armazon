@@ -60,17 +60,43 @@
             <nav class="sb-sidenav accordion sb-sidenav-dark" id="sidenavAccordion">
                 <div class="sb-sidenav-menu">
                     <div class="nav">
+                        <?php
+                        if (!function_exists('mayorista_nav_link_visible')) {
+                            require_once __DIR__ . '/mayorista_helpers.php';
+                        }
+                        $navUid = isset($_SESSION['idUser']) ? (int) $_SESSION['idUser'] : 0;
+                        $navCx = isset($conexion) && $conexion instanceof mysqli ? $conexion : null;
+                        ?>
+                        <?php if (mayorista_nav_link_visible($navCx, $navUid, array('nueva_venta', 'ventas'))) { ?>
                         <a class="nav-link" href="ventas.php"><div class="sb-nav-link-icon"><i class="fas fa-shopping-cart"></i></div> Nueva venta</a>
+                        <?php } ?>
+                        <?php if (mayorista_nav_link_visible($navCx, $navUid, array('ventas'))) { ?>
                         <a class="nav-link" href="lista_ventas.php"><div class="sb-nav-link-icon"><i class="fas fa-receipt"></i></div> Ventas</a>
+                        <?php } ?>
+                        <?php if (mayorista_nav_link_visible($navCx, $navUid, array('clientes'))) { ?>
                         <a class="nav-link" href="clientes.php"><div class="sb-nav-link-icon"><i class="fas fa-users"></i></div> Clientes</a>
+                        <?php } ?>
+                        <?php if (mayorista_nav_link_visible($navCx, $navUid, array('cuenta_corriente', 'clientes'))) { ?>
                         <a class="nav-link" href="cuenta_corriente.php"><div class="sb-nav-link-icon"><i class="fas fa-file-invoice-dollar"></i></div> Cuenta corriente</a>
+                        <?php } ?>
+                        <?php if (mayorista_nav_link_visible($navCx, $navUid, array('productos'))) { ?>
                         <a class="nav-link" href="productos.php"><div class="sb-nav-link-icon"><i class="fas fa-glasses"></i></div> Productos</a>
+                        <?php } ?>
+                        <?php if (mayorista_nav_link_visible($navCx, $navUid, array('estadisticas'))) { ?>
                         <a class="nav-link" href="estadisticas.php"><div class="sb-nav-link-icon"><i class="fas fa-chart-line"></i></div> Estadisticas</a>
+                        <?php } ?>
+                        <?php if (mayorista_nav_link_visible($navCx, $navUid, array('reportes', 'reporte'))) { ?>
                         <a class="nav-link" href="reporte.php"><div class="sb-nav-link-icon"><i class="fas fa-chart-bar"></i></div> Reportes</a>
+                        <?php } ?>
+                        <?php if (mayorista_nav_link_visible($navCx, $navUid, array('api_config'))) { ?>
                         <a class="nav-link" href="api_config.php"><div class="sb-nav-link-icon"><i class="fas fa-key"></i></div> API</a>
+                        <?php } ?>
+                        <?php if (mayorista_nav_link_visible($navCx, $navUid, array('usuarios'))) { ?>
                         <a class="nav-link" href="usuarios.php"><div class="sb-nav-link-icon"><i class="fas fa-user"></i></div> Usuarios </a>
+                        <?php } ?>
+                        <?php if (mayorista_nav_link_visible($navCx, $navUid, array('configuracion'))) { ?>
                         <a class="nav-link" href="configuracion_sistema.php"><div class="sb-nav-link-icon"><i class="fas fa-cogs"></i></div> Configuracion </a>
-                            
+                        <?php } ?>
                     </div>
                 </div>
             </nav>

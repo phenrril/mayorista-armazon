@@ -1598,6 +1598,65 @@ body.login-page {
   }
 }
 
+/* Asignación de permisos (rol.php) */
+.rol-permisos-card .rol-permisos-grupo-titulo {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rol-permiso-item {
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  min-height: 3.25rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel-soft);
+  border: 1px solid var(--border-subtle);
+  transition: border-color 0.2s var(--ease-premium), background 0.2s var(--ease-premium);
+}
+
+.rol-permiso-item:hover {
+  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.rol-permiso-label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+
+.rol-permiso-label span {
+  line-height: 1.35;
+}
+
+.rol-permiso-icon {
+  flex-shrink: 0;
+  width: 1.1rem;
+  text-align: center;
+  color: var(--accent);
+  opacity: 0.95;
+}
+
+.rol-permisos-card .custom-control-input:focus ~ .custom-control-label::before {
+  box-shadow: 0 0 0 0.2rem var(--accent-glow);
+}
+
+.rol-permisos-acciones {
+  border-color: var(--border-subtle) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

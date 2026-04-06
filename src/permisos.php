@@ -1,4 +1,13 @@
-<?php include "includes/header.php"; ?>
+<?php
+session_start();
+if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
+    header('Location: ../');
+    exit();
+}
+include '../conexion.php';
+require_once __DIR__ . '/includes/mayorista_helpers.php';
+include 'includes/header.php';
+?>
 <div class="access-denied-container">
     <div class="card access-denied-card">
         <div class="card-header-beautiful">
@@ -9,7 +18,7 @@
         <div class="card-body-beautiful">
             <i class="fas fa-lock decorative-icon text-primary"></i>
             <p class="message-text">
-                Lo sentimos, no cuentas con los permisos necesarios para ver esta página. 
+                Lo sentimos, no cuentas con los permisos necesarios para ver esta página.
                 Si necesitas acceso a esta funcionalidad, contacta con el administrador del sistema.
             </p>
             <a href="index.php" class="btn-return-beautiful">
@@ -19,4 +28,4 @@
     </div>
 </div>
 
-<?php include "includes/footer.php"; ?>
+<?php include 'includes/footer.php'; ?>

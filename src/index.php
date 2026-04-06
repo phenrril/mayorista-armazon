@@ -68,14 +68,14 @@ $facturasPendientes = $hasFacturas
     : array('total' => 0);
 
 $accesosRapidos = array(
-    array('label' => 'Nueva venta', 'icon' => 'fa-store', 'href' => 'ventas.php', 'class' => 'accent-indigo'),
-    array('label' => 'Ventas', 'icon' => 'fa-receipt', 'href' => 'lista_ventas.php', 'class' => 'accent-blue'),
-    array('label' => 'Clientes', 'icon' => 'fa-users', 'href' => 'clientes.php', 'class' => 'accent-cyan'),
-    array('label' => 'Cuenta corriente', 'icon' => 'fa-file-invoice-dollar', 'href' => 'cuenta_corriente.php', 'class' => 'accent-emerald'),
-    array('label' => 'Productos', 'icon' => 'fa-glasses', 'href' => 'productos.php', 'class' => 'accent-teal'),
-    array('label' => 'Estadísticas', 'icon' => 'fa-chart-line', 'href' => 'estadisticas.php', 'class' => 'accent-amber'),
-    array('label' => 'Reportes', 'icon' => 'fa-chart-bar', 'href' => 'reporte.php', 'class' => 'accent-orange'),
-    array('label' => 'API', 'icon' => 'fa-key', 'href' => 'api_config.php', 'class' => 'accent-violet'),
+    array('label' => 'Nueva venta', 'icon' => 'fa-store', 'href' => 'ventas.php', 'class' => 'accent-indigo', 'perm' => array('nueva_venta', 'ventas')),
+    array('label' => 'Ventas', 'icon' => 'fa-receipt', 'href' => 'lista_ventas.php', 'class' => 'accent-blue', 'perm' => array('ventas')),
+    array('label' => 'Clientes', 'icon' => 'fa-users', 'href' => 'clientes.php', 'class' => 'accent-cyan', 'perm' => array('clientes')),
+    array('label' => 'Cuenta corriente', 'icon' => 'fa-file-invoice-dollar', 'href' => 'cuenta_corriente.php', 'class' => 'accent-emerald', 'perm' => array('cuenta_corriente', 'clientes')),
+    array('label' => 'Productos', 'icon' => 'fa-glasses', 'href' => 'productos.php', 'class' => 'accent-teal', 'perm' => array('productos')),
+    array('label' => 'Estadísticas', 'icon' => 'fa-chart-line', 'href' => 'estadisticas.php', 'class' => 'accent-amber', 'perm' => array('estadisticas')),
+    array('label' => 'Reportes', 'icon' => 'fa-chart-bar', 'href' => 'reporte.php', 'class' => 'accent-orange', 'perm' => array('reportes', 'reporte')),
+    array('label' => 'API', 'icon' => 'fa-key', 'href' => 'api_config.php', 'class' => 'accent-violet', 'perm' => array('api_config')),
 );
 
 include_once "includes/header.php";
@@ -179,7 +179,11 @@ include_once "includes/header.php";
                 </div>
                 <div class="card-body">
                     <div class="quick-links-grid">
-                        <?php foreach ($accesosRapidos as $acceso) { ?>
+                        <?php foreach ($accesosRapidos as $acceso) {
+                            if (!mayorista_nav_link_visible($conexion, $id_user, $acceso['perm'])) {
+                                continue;
+                            }
+                            ?>
                             <a class="quick-link <?php echo $acceso['class']; ?>" href="<?php echo $acceso['href']; ?>">
                                 <span class="quick-link-icon"><i class="fas <?php echo $acceso['icon']; ?>"></i></span>
                                 <span>

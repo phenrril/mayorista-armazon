@@ -73,7 +73,7 @@ if (!empty($_POST)) {
     <div class="card card-modern">
         <div class="card-body-modern">
             <div class="table-responsive">
-                <table class="table table-modern" id="tbl">
+                <table class="table table-modern custom-dt-init" id="tbl">
                     <thead>
                         <tr>
                             <th>#</th>
@@ -180,5 +180,32 @@ if (!empty($_POST)) {
         </div>
     </div>
 </div>
+
+<script>
+window.addEventListener('load', function () {
+    var $ = window.jQuery;
+    if (!$ || !$.fn.DataTable) {
+        return;
+    }
+    var $table = $('#tbl');
+    if ($table.length && !$.fn.DataTable.isDataTable($table)) {
+        $table.DataTable({
+            paging: false,
+            lengthChange: false,
+            info: false,
+            ordering: true,
+            order: [[0, 'asc']],
+            columnDefs: [
+                { targets: -1, orderable: false }
+            ],
+            language: {
+                search: 'Buscar:',
+                zeroRecords: 'No hay coincidencias',
+                emptyTable: 'Sin datos'
+            }
+        });
+    }
+});
+</script>
 
 <?php include_once "includes/footer.php"; ?>
