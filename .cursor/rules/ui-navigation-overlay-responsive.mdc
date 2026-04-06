@@ -1,0 +1,23 @@
+---
+description: Cuida sidebar, navbar, modales y overlays en mobile
+globs: {src/**/*.php,src/includes/**/*.php,assets/css/**/*.css,assets/js/**/*.js}
+alwaysApply: false
+---
+
+# Navigation And Overlay Responsive
+
+Cuando un cambio toque navegación, overlays o capas visuales del frontend, priorizar interacción correcta en mobile.
+
+- Si se modifica sidebar, navbar o menú hamburguesa, asegurar que el panel activo quede por encima del overlay y siga siendo clickeable/tocable.
+- Los overlays deben bloquear el fondo, pero no tapar el panel activo ni volver opacos sus elementos interactivos.
+- Si se usa blur (`backdrop-filter`), aplicarlo solo al fondo que queda detrás del panel, no al propio menú/modal.
+- Verificar `z-index`, `pointer-events`, foco, scroll y cierre al tocar afuera o al navegar desde el menú.
+- En modales o drawers largos, usar scroll interno cuando haga falta y evitar que el contenido quede cortado en pantallas chicas.
+- Si se agregan listeners de cierre global, no deben interferir con clicks dentro del menú, dropdown o modal activo.
+
+Ejemplos:
+
+- Bien: overlay detrás del sidebar, menú por encima, links seleccionables y fondo blureado.
+- Bien: modal con `modal-dialog-scrollable` cuando el formulario es largo en mobile.
+- Mal: overlay por encima del sidebar, links visibles pero imposibles de tocar.
+- Mal: cierre global por click en `document` que dispara incluso al tocar un item del panel abierto.
