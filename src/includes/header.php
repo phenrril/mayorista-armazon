@@ -13,24 +13,16 @@
     <meta name="author" content="" />
     <title>Armazón | Panel</title>
     
-    <!-- Preload recursos críticos -->
-    <link rel="preload" href="../assets/css/styles.css" as="style">
-    <link rel="preload" href="../assets/css/dataTables.bootstrap4.min.css" as="style">
-    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="../assets/css/styles.css" rel="stylesheet" />
-    <link href="../assets/css/dataTables.bootstrap4.min.css" rel="stylesheet" crossorigin="anonymous" />
+    <link href="../assets/css/dataTables.bootstrap4.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="../assets/js/jquery-ui/jquery-ui.min.css">
     <link href="../assets/css/dark-premium.css" rel="stylesheet" />
     
     <!-- Cargar Font Awesome de forma asíncrona para no bloquear renderizado -->
-    <script src="../assets/js/all.min.js" crossorigin="anonymous" defer></script>
-    
-    <!-- Preload scripts críticos -->
-    <link rel="preload" href="../assets/js/jquery-3.6.0.min.js" as="script">
-    <link rel="preload" href="../assets/js/bootstrap.bundle.min.js" as="script">
+    <script src="../assets/js/all.min.js" defer></script>
     
 </head>
 
@@ -50,7 +42,7 @@
                 <div class="dropdown-menu dropdown-menu-right" aria-labelledby="userDropdown">
                     <a class="dropdown-item" href="#" data-toggle="modal" data-target="#nuevo_pass">Perfil</a>
                     <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="salir.php">Cerrar Sessión</a>
+                    <a class="dropdown-item" href="salir.php">Cerrar Sesión</a>
                 </div>
             </li>
         </ul>

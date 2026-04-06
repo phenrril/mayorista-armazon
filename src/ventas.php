@@ -32,6 +32,7 @@ $hasClienteCodigoPostal = mayorista_column_exists($conexion, 'cliente', 'codigo_
 $hasClienteProvincia = mayorista_column_exists($conexion, 'cliente', 'provincia');
 $hasModoDespacho = mayorista_column_exists($conexion, 'ventas', 'modo_despacho');
 $modosDespacho = mayorista_modos_despacho();
+$ventaToken = mayorista_generar_token_venta();
 $schemaReady = mayorista_column_exists($conexion, 'producto', 'precio_mayorista')
     && mayorista_column_exists($conexion, 'ventas', 'tipo_venta')
     && mayorista_table_exists($conexion, 'cuenta_corriente')
@@ -73,6 +74,7 @@ include_once "includes/header.php";
             <div class="row">
                 <div class="col-lg-4">
                     <input type="hidden" id="idcliente" value="">
+                    <input type="hidden" id="venta_token" value="<?php echo htmlspecialchars($ventaToken); ?>">
                     <div class="form-group">
                         <label>Cliente</label>
                         <input type="text" id="nom_cliente" class="form-control form-control-modern" placeholder="Buscar por nombre, DNI o teléfono">

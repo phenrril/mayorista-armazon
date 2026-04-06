@@ -17,6 +17,11 @@ $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' :
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $baseUrl = $scheme . '://' . $host . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
 $apiBase = $baseUrl . '/api/index.php';
+$apiKey = mayorista_get_api_key();
+$apiConfigurada = mayorista_api_key_configurada();
+$apiKeyDisplay = $apiConfigurada
+    ? str_repeat('*', max(strlen($apiKey) - 4, 0)) . substr($apiKey, -4)
+    : 'No configurada';
 
 include_once "includes/header.php";
 ?>
@@ -31,10 +36,14 @@ include_once "includes/header.php";
             </div>
             <div class="form-group">
                 <label>API Key</label>
-                <input type="text" class="form-control" value="<?php echo htmlspecialchars(mayorista_get_api_key()); ?>" readonly>
+                <input type="text" class="form-control" value="<?php echo htmlspecialchars($apiKeyDisplay); ?>" readonly>
             </div>
-            <div class="alert alert-warning mb-0">
-                Define `MAYORISTA_API_KEY` en el entorno productivo para reemplazar la clave por defecto.
+            <div class="alert <?php echo $apiConfigurada ? 'alert-success' : 'alert-danger'; ?> mb-0">
+                <?php if ($apiConfigurada) { ?>
+                    La API esta habilitada mediante `MAYORISTA_API_KEY`.
+                <?php } else { ?>
+                    La API esta deshabilitada hasta definir `MAYORISTA_API_KEY` en el entorno.
+                <?php } ?>
             </div>
         </div>
     </div>

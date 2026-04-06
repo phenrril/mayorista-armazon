@@ -34,8 +34,21 @@ function api_request_data()
     return $_POST;
 }
 
-$providedKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
-if ($providedKey !== mayorista_get_api_key()) {
+if (!($conexion instanceof mysqli)) {
+    api_response(array('success' => false, 'message' => 'No se pudo conectar a la base de datos'), 500);
+}
+/** @var mysqli $conexion */
+
+$apiKey = mayorista_get_api_key();
+if ($apiKey === '') {
+    api_response(array(
+        'success' => false,
+        'message' => 'API no configurada. Defini MAYORISTA_API_KEY antes de habilitarla.',
+    ), 503);
+}
+
+$providedKey = trim((string) ($_SERVER['HTTP_X_API_KEY'] ?? ''));
+if ($providedKey === '' || !hash_equals($apiKey, $providedKey)) {
     api_response(array('success' => false, 'message' => 'API key invalida'), 401);
 }
 
