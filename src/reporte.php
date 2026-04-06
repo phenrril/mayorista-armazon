@@ -331,19 +331,21 @@ include_once "includes/header.php";
             <div class="card kpi-card">
                 <div class="card-header bg-success text-white">Productos</div>
                 <div class="card-body">
-                    <table class="table table-sm">
-                        <thead><tr><th>Producto</th><th>Stock</th><th>Vendidos</th><th>Monto</th></tr></thead>
-                        <tbody>
-                            <?php while ($row = mysqli_fetch_assoc($productosReporte)) { ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($row['descripcion']); ?></td>
-                                    <td><?php echo (int) $row['existencia']; ?></td>
-                                    <td><?php echo (float) $row['vendidos']; ?></td>
-                                    <td><?php echo mayorista_formatear_moneda($row['monto']); ?></td>
-                                </tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Producto</th><th>Stock</th><th>Vendidos</th><th>Monto</th></tr></thead>
+                            <tbody>
+                                <?php while ($row = mysqli_fetch_assoc($productosReporte)) { ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($row['descripcion']); ?></td>
+                                        <td><?php echo (int) $row['existencia']; ?></td>
+                                        <td><?php echo (float) $row['vendidos']; ?></td>
+                                        <td><?php echo mayorista_formatear_moneda($row['monto']); ?></td>
+                                    </tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -351,18 +353,20 @@ include_once "includes/header.php";
             <div class="card kpi-card">
                 <div class="card-header bg-info text-white">Clientes top</div>
                 <div class="card-body">
-                    <table class="table table-sm">
-                        <thead><tr><th>Cliente</th><th>Operaciones</th><th>Volumen</th></tr></thead>
-                        <tbody>
-                            <?php while ($row = mysqli_fetch_assoc($clientesTop)) { ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($row['nombre']); ?></td>
-                                    <td><?php echo (int) $row['operaciones']; ?></td>
-                                    <td><?php echo mayorista_formatear_moneda($row['volumen']); ?></td>
-                                </tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Cliente</th><th>Operaciones</th><th>Volumen</th></tr></thead>
+                            <tbody>
+                                <?php while ($row = mysqli_fetch_assoc($clientesTop)) { ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($row['nombre']); ?></td>
+                                        <td><?php echo (int) $row['operaciones']; ?></td>
+                                        <td><?php echo mayorista_formatear_moneda($row['volumen']); ?></td>
+                                    </tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -373,22 +377,24 @@ include_once "includes/header.php";
             <div class="card kpi-card">
                 <div class="card-header bg-warning text-white">Clientes en mora</div>
                 <div class="card-body">
-                    <table class="table table-sm">
-                        <thead><tr><th>Cliente</th><th>Saldo</th><th>Limite</th></tr></thead>
-                        <tbody>
-                            <?php if ($clientesMora && mysqli_num_rows($clientesMora) > 0) {
-                                while ($row = mysqli_fetch_assoc($clientesMora)) { ?>
-                                    <tr>
-                                        <td><?php echo htmlspecialchars($row['nombre']); ?></td>
-                                        <td><?php echo mayorista_formatear_moneda($row['saldo_actual']); ?></td>
-                                        <td><?php echo mayorista_formatear_moneda($row['limite_credito']); ?></td>
-                                    </tr>
-                            <?php }
-                            } else { ?>
-                                <tr><td colspan="3" class="text-center text-muted">Sin deuda pendiente registrada.</td></tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Cliente</th><th>Saldo</th><th>Limite</th></tr></thead>
+                            <tbody>
+                                <?php if ($clientesMora && mysqli_num_rows($clientesMora) > 0) {
+                                    while ($row = mysqli_fetch_assoc($clientesMora)) { ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($row['nombre']); ?></td>
+                                            <td><?php echo mayorista_formatear_moneda($row['saldo_actual']); ?></td>
+                                            <td><?php echo mayorista_formatear_moneda($row['limite_credito']); ?></td>
+                                        </tr>
+                                <?php }
+                                } else { ?>
+                                    <tr><td colspan="3" class="text-center text-muted">Sin deuda pendiente registrada.</td></tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

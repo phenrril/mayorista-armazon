@@ -63,9 +63,9 @@ include_once "includes/header.php";
     <?php } ?>
 
     <div class="card card-modern">
-        <div class="card-header card-header-modern d-flex justify-content-between align-items-center">
+        <div class="card-header card-header-modern d-flex justify-content-between align-items-center flex-wrap">
             <span><i class="fas fa-user mr-2"></i> Cliente y condiciones</span>
-            <button type="button" class="btn btn-sm btn-success-modern btn-modern" data-toggle="modal" data-target="#nuevo_cliente_venta">
+            <button type="button" class="btn btn-sm btn-success-modern btn-modern mt-2 mt-md-0" data-toggle="modal" data-target="#nuevo_cliente_venta">
                 <i class="fas fa-plus mr-1"></i> Nuevo cliente
             </button>
         </div>
@@ -262,7 +262,7 @@ include_once "includes/header.php";
 </div>
 
 <div id="nuevo_cliente_venta" class="modal fade" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
         <div class="modal-content">
             <div class="modal-header modal-header-accent">
                 <h5 class="modal-title"><i class="fas fa-user-plus mr-2"></i> Nuevo cliente</h5>

@@ -1,0 +1,22 @@
+---
+description: Exige que los cambios de UI mantengan responsive mobile y desktop
+globs: {index.php,src/**/*.php,src/includes/**/*.php,assets/css/**/*.css,assets/js/**/*.js}
+alwaysApply: false
+---
+
+# UI Responsive
+
+Cuando se modifique UI en este proyecto, asumir siempre soporte mobile y desktop.
+
+- Mantener compatibilidad con el stack actual: Bootstrap 4, PHP views, `assets/css/dark-premium.css` y `assets/js/scripts.js`.
+- No introducir anchos fijos que rompan en móvil. Preferir grid de Bootstrap, `flex-wrap`, `clamp()`, `%`, `max-width` y media queries.
+- Si se agregan tablas o listados anchos, usar `table-responsive` o un contenedor con scroll horizontal local. Nunca provocar scroll horizontal de toda la página.
+- Si se tocan navbar, sidebar, overlays, modales o dropdowns, verificar `z-index`, foco, toque y cierre correcto en pantallas chicas.
+- Si se agregan acciones o botones en headers/cards, asegurar que puedan apilarse bien en mobile y sigan siendo tocables.
+- Si se modifica CSS/JS de interfaz, considerar estados en al menos 3 anchos: mobile (~375px), tablet (~768px) y desktop (~1024px o más).
+
+Ejemplos:
+
+- Bien: envolver una tabla en `.table-responsive` y ajustar controles de DataTables para mobile.
+- Bien: convertir un header con botones a `flex-wrap` o apilar botones bajo `max-width: 767.98px`.
+- Mal: agregar `width: 600px` a una card o dejar un menú móvil cubierto por un overlay que impide tocar los links.

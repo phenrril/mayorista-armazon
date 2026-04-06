@@ -180,17 +180,19 @@ include_once "includes/header.php";
             <div class="card kpi-card">
                 <div class="card-header bg-success text-white">Productos mas vendidos</div>
                 <div class="card-body">
-                    <table class="table table-sm">
-                        <thead><tr><th>Producto</th><th>Cantidad</th></tr></thead>
-                        <tbody>
-                            <?php while ($row = mysqli_fetch_assoc($productosCantidad)) { ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($row['descripcion']); ?></td>
-                                    <td><?php echo (float) $row['cantidad']; ?></td>
-                                </tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Producto</th><th>Cantidad</th></tr></thead>
+                            <tbody>
+                                <?php while ($row = mysqli_fetch_assoc($productosCantidad)) { ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($row['descripcion']); ?></td>
+                                        <td><?php echo (float) $row['cantidad']; ?></td>
+                                    </tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -198,17 +200,19 @@ include_once "includes/header.php";
             <div class="card kpi-card">
                 <div class="card-header bg-info text-white">Productos por monto</div>
                 <div class="card-body">
-                    <table class="table table-sm">
-                        <thead><tr><th>Producto</th><th>Monto</th></tr></thead>
-                        <tbody>
-                            <?php while ($row = mysqli_fetch_assoc($productosMonto)) { ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($row['descripcion']); ?></td>
-                                    <td><?php echo mayorista_formatear_moneda($row['monto']); ?></td>
-                                </tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Producto</th><th>Monto</th></tr></thead>
+                            <tbody>
+                                <?php while ($row = mysqli_fetch_assoc($productosMonto)) { ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($row['descripcion']); ?></td>
+                                        <td><?php echo mayorista_formatear_moneda($row['monto']); ?></td>
+                                    </tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -216,18 +220,20 @@ include_once "includes/header.php";
             <div class="card kpi-card">
                 <div class="card-header bg-warning text-white">Clientes con mayor volumen</div>
                 <div class="card-body">
-                    <table class="table table-sm">
-                        <thead><tr><th>Cliente</th><th>Oper.</th><th>Volumen</th></tr></thead>
-                        <tbody>
-                            <?php while ($row = mysqli_fetch_assoc($clientesTop)) { ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($row['nombre']); ?></td>
-                                    <td><?php echo (int) $row['operaciones']; ?></td>
-                                    <td><?php echo mayorista_formatear_moneda($row['volumen']); ?></td>
-                                </tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Cliente</th><th>Oper.</th><th>Volumen</th></tr></thead>
+                            <tbody>
+                                <?php while ($row = mysqli_fetch_assoc($clientesTop)) { ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($row['nombre']); ?></td>
+                                        <td><?php echo (int) $row['operaciones']; ?></td>
+                                        <td><?php echo mayorista_formatear_moneda($row['volumen']); ?></td>
+                                    </tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
