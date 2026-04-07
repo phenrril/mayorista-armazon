@@ -305,7 +305,17 @@ include_once "includes/header.php";
                                                     required
                                                 >
                                             </td>
-                                            <td><input type="number" min="1" name="cantidad[]" class="form-control cantidad-input" value="<?php echo (int) $row['cantidad']; ?>" required></td>
+                                            <td>
+                                                <div class="input-group input-group-sm">
+                                                    <div class="input-group-prepend">
+                                                        <button type="button" class="btn btn-outline-secondary ajustar-cantidad" data-delta="-1" aria-label="Restar una unidad">-</button>
+                                                    </div>
+                                                    <input type="number" min="1" name="cantidad[]" class="form-control cantidad-input text-center" value="<?php echo (int) $row['cantidad']; ?>" required>
+                                                    <div class="input-group-append">
+                                                        <button type="button" class="btn btn-outline-secondary ajustar-cantidad" data-delta="1" aria-label="Sumar una unidad">+</button>
+                                                    </div>
+                                                </div>
+                                            </td>
                                             <td><input type="number" step="0.01" min="0" name="precio[]" class="form-control precio-input" value="<?php echo (float) $row['precio']; ?>" required></td>
                                             <td class="subtotal-cell"><?php echo mayorista_formatear_moneda((float) $row['precio'] * (int) $row['cantidad']); ?></td>
                                             <td><button type="button" class="btn btn-sm btn-danger remover-fila">&times;</button></td>
@@ -345,7 +355,17 @@ include_once "includes/header.php";
                 required
             >
         </td>
-        <td><input type="number" min="1" name="cantidad[]" class="form-control cantidad-input" value="1" required></td>
+        <td>
+            <div class="input-group input-group-sm">
+                <div class="input-group-prepend">
+                    <button type="button" class="btn btn-outline-secondary ajustar-cantidad" data-delta="-1" aria-label="Restar una unidad">-</button>
+                </div>
+                <input type="number" min="1" name="cantidad[]" class="form-control cantidad-input text-center" value="1" required>
+                <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary ajustar-cantidad" data-delta="1" aria-label="Sumar una unidad">+</button>
+                </div>
+            </div>
+        </td>
         <td><input type="number" step="0.01" min="0" name="precio[]" class="form-control precio-input" value="0" required></td>
         <td class="subtotal-cell">$0,00</td>
         <td><button type="button" class="btn btn-sm btn-danger remover-fila">&times;</button></td>
@@ -491,6 +511,27 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.addEventListener('click', function(event) {
+        const botonCantidad = event.target.closest('.ajustar-cantidad');
+        if (botonCantidad) {
+            const fila = botonCantidad.closest('tr');
+            const cantidadInput = fila ? fila.querySelector('.cantidad-input') : null;
+            const delta = parseInt(botonCantidad.dataset.delta || '0', 10);
+            if (!fila || !cantidadInput || !delta) {
+                return;
+            }
+
+            const cantidadActual = parseInt(cantidadInput.value || '0', 10) || 0;
+            if (delta < 0 && cantidadActual <= 1) {
+                fila.remove();
+                recalcularTotalesEdicion();
+                return;
+            }
+
+            cantidadInput.value = Math.max(1, cantidadActual + delta);
+            recalcularTotalesEdicion();
+            return;
+        }
+
         const botonRemover = event.target.closest('.remover-fila');
         if (botonRemover) {
             const fila = botonRemover.closest('tr');
