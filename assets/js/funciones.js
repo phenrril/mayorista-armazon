@@ -6,6 +6,10 @@ function formatCurrency(value) {
 }
 
 let ventaEnProceso = false;
+let productoAutocompleteState = {
+    termino: '',
+    resultados: []
+};
 
 function showCenteredAlert(options) {
     return Swal.fire(Object.assign({
@@ -17,6 +21,19 @@ function showCenteredAlert(options) {
         allowOutsideClick: true,
         showConfirmButton: false
     }, options));
+}
+
+function seleccionarProductoAutocomplete(item) {
+    if (!item || item.noMatch) {
+        return;
+    }
+
+    productoAutocompleteState = {
+        termino: '',
+        resultados: []
+    };
+    $('#producto').val(item.label);
+    registrarDetalleManual(item.id, 1, item.precio);
 }
 
 function btnCambiar(e) {
@@ -152,7 +169,17 @@ function listar() {
                     <tr>
                         <td><span class="badge badge-light">${row.codigo}</span></td>
                         <td>${row.descripcion}</td>
-                        <td>${row.cantidad}</td>
+                        <td>
+                            <div class="d-flex align-items-center justify-content-center flex-nowrap">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="ajustarCantidadDetalle(${row.id}, -1)" aria-label="Restar una unidad">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <span class="badge badge-secondary mx-2 px-3 py-2 detalle-cantidad-label">${row.cantidad}</span>
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="ajustarCantidadDetalle(${row.id}, 1)" aria-label="Sumar una unidad">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </td>
                         <td>
                             <input
                                 type="number"
@@ -243,7 +270,7 @@ function actualizarPrecio(id, nuevoPrecio, inputEl) {
         success: function (response) {
             if (response === 'ok') {
                 const fila = $(inputEl).closest('tr');
-                const cantidad = parseFloat(fila.find('td:nth-child(3)').text()) || 1;
+                const cantidad = parseFloat(fila.find('.detalle-cantidad-label').text()) || 1;
                 const subtotal = precio * cantidad;
                 fila.find('.subtotal-item').data('subtotal', subtotal).text(formatCurrency(subtotal));
                 calcularVenta();
@@ -267,6 +294,48 @@ function deleteDetalle(id) {
         },
         success: function () {
             listar();
+        }
+    });
+}
+
+function ajustarCantidadDetalle(id, delta) {
+    $.ajax({
+        url: 'ajax.php',
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            ajustar_cantidad_detalle: true,
+            id: id,
+            delta: delta
+        },
+        success: function (response) {
+            const normalized = String(response).replace(/"/g, '');
+            if (normalized === 'sumado' || normalized === 'restado' || normalized === 'eliminado') {
+                listar();
+                return;
+            }
+
+            if (normalized === 'stock_insuficiente') {
+                showCenteredAlert({
+                    icon: 'warning',
+                    title: 'Stock insuficiente',
+                    timer: 2200
+                });
+                return;
+            }
+
+            showCenteredAlert({
+                icon: 'error',
+                title: 'No se pudo actualizar la cantidad',
+                timer: 2200
+            });
+        },
+        error: function () {
+            showCenteredAlert({
+                icon: 'error',
+                title: 'No se pudo actualizar la cantidad',
+                timer: 2200
+            });
         }
     });
 }
@@ -485,8 +554,15 @@ $(function () {
                 }, function (items) {
                     const resultados = Array.isArray(items) ? items : [];
                     const termino = String(request.term || '').trim();
+                    productoAutocompleteState = {
+                        termino: termino,
+                        resultados: resultados.filter(function (item) {
+                            return item && !item.noMatch;
+                        })
+                    };
 
                     if (termino.length >= 3 && resultados.length === 0) {
+                        productoAutocompleteState.resultados = [];
                         response([{
                             id: 0,
                             label: 'No hay coincidencias',
@@ -528,10 +604,24 @@ $(function () {
                     return false;
                 }
 
-                $('#producto').val(ui.item.label);
-                registrarDetalleManual(ui.item.id, 1, ui.item.precio);
+                seleccionarProductoAutocomplete(ui.item);
                 return false;
             }
+        });
+
+        $('#producto').on('keydown', function (event) {
+            const termino = String($(this).val() || '').trim();
+            if (event.key !== 'Enter') {
+                return;
+            }
+
+            if (productoAutocompleteState.termino !== termino || productoAutocompleteState.resultados.length !== 1) {
+                return;
+            }
+
+            event.preventDefault();
+            $(this).autocomplete('close');
+            seleccionarProductoAutocomplete(productoAutocompleteState.resultados[0]);
         });
 
         const productoInstance = $('#producto').autocomplete('instance');

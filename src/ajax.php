@@ -293,6 +293,53 @@ if (isset($_GET['delete_detalle'])) {
     exit();
 }
 
+if (isset($_POST['ajustar_cantidad_detalle'])) {
+    $id_detalle = (int) ($_POST['id'] ?? 0);
+    $delta = (int) ($_POST['delta'] ?? 0);
+    if ($id_detalle <= 0 || !in_array($delta, array(-1, 1), true)) {
+        ajax_json('error');
+    }
+
+    $detalleQuery = mysqli_query(
+        $conexion,
+        "SELECT d.id, d.id_producto, d.cantidad, d.precio_venta, p.existencia
+         FROM detalle_temp d
+         INNER JOIN producto p ON d.id_producto = p.codproducto
+         WHERE d.id = $id_detalle
+         AND d.id_usuario = $id_user
+         LIMIT 1"
+    );
+    $detalle = $detalleQuery ? mysqli_fetch_assoc($detalleQuery) : null;
+    if (!$detalle) {
+        ajax_json('error');
+    }
+
+    $cantidadActual = (int) $detalle['cantidad'];
+    $nuevaCantidad = $cantidadActual + $delta;
+    if ($nuevaCantidad <= 0) {
+        $delete = mysqli_query($conexion, "DELETE FROM detalle_temp WHERE id = $id_detalle AND id_usuario = $id_user");
+        if ($delete) {
+            ajax_limpiar_precio_detalle_editado($id_detalle);
+        }
+        ajax_json($delete ? 'eliminado' : 'error');
+    }
+
+    $existencia = (int) $detalle['existencia'];
+    if ($delta > 0 && $nuevaCantidad > $existencia) {
+        ajax_json('stock_insuficiente');
+    }
+
+    $precio = (float) $detalle['precio_venta'];
+    $nuevoTotal = $nuevaCantidad * $precio;
+    $update = mysqli_query(
+        $conexion,
+        "UPDATE detalle_temp
+         SET cantidad = $nuevaCantidad, total = $nuevoTotal
+         WHERE id = $id_detalle AND id_usuario = $id_user"
+    );
+    ajax_json($update ? ($delta > 0 ? 'sumado' : 'restado') : 'error');
+}
+
 if (isset($_POST['update_precio'])) {
     $id_detalle = (int) $_POST['id'];
     $nuevo_precio = (float) $_POST['precio'];
