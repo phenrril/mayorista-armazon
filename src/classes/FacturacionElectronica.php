@@ -454,13 +454,14 @@ class FacturacionElectronica {
 
         // 2. Obtener detalle de la venta
         $query_detalle = mysqli_query($this->conexion,
-            "SELECT dv.*, p.descripcion, p.codigo 
+            "SELECT dv.*, p.descripcion, p.codigo, p.marca, p.modelo, p.color, p.tipo
              FROM detalle_venta dv
              INNER JOIN producto p ON dv.id_producto = p.codproducto
              WHERE dv.id_venta = " . intval($id_venta));
         
         $items = [];
         while ($row = mysqli_fetch_assoc($query_detalle)) {
+            $row['descripcion'] = mayorista_nombre_producto($row);
             $items[] = $row;
         }
         

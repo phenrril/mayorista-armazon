@@ -17,6 +17,7 @@ if ($idProducto <= 0) {
     exit();
 }
 
+$hasDescripcion = mayorista_column_exists($conexion, 'producto', 'descripcion');
 $hasMayorista = mayorista_column_exists($conexion, 'producto', 'precio_mayorista');
 $hasTipo = mayorista_column_exists($conexion, 'producto', 'tipo');
 $hasModelo = mayorista_column_exists($conexion, 'producto', 'modelo');
@@ -37,7 +38,6 @@ if (!$producto) {
 $alert = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $codigo = mysqli_real_escape_string($conexion, trim($_POST['codigo'] ?? ''));
-    $descripcion = mysqli_real_escape_string($conexion, trim($_POST['producto'] ?? ''));
     $marca = mysqli_real_escape_string($conexion, trim($_POST['marca'] ?? ''));
     $modelo = mysqli_real_escape_string($conexion, trim($_POST['modelo'] ?? ''));
     $color = mysqli_real_escape_string($conexion, trim($_POST['color'] ?? ''));
@@ -57,16 +57,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (
-        $codigo === '' || $descripcion === '' || $marca === '' || $precio < 0 || $stock < 0
+        $codigo === '' || $marca === '' || $precio < 0 || $stock < 0
         || ($hasModelo && $modelo === '')
         || ($hasColor && $color === '')
         || ($hasTipoMaterial && $tipoMaterial === '')
     ) {
-        $alert = '<div class="alert alert-warning">Completa codigo, descripcion, marca, modelo, color, material, precio y stock.</div>';
+        $alert = '<div class="alert alert-warning">Completa codigo, marca, modelo, color, material, tipo, precio y stock.</div>';
     } else {
         $updates = array(
             "codigo = '$codigo'",
-            "descripcion = '$descripcion'",
             "marca = '$marca'",
             "precio = $precio",
             "existencia = $stock"
@@ -87,6 +86,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($hasTipo) {
             $updates[] = "tipo = '$tipo'";
+        }
+        if ($hasDescripcion) {
+            $updates[] = "descripcion = '" . mysqli_real_escape_string($conexion, $tipo) . "'";
         }
         if ($hasPrecioBruto) {
             $updates[] = "precio_bruto = $precioBruto";
@@ -121,8 +123,8 @@ include_once "includes/header.php";
                             <input type="text" name="codigo" class="form-control" value="<?php echo htmlspecialchars($producto['codigo']); ?>" required>
                         </div>
                         <div class="form-group col-md-8">
-                            <label>Descripcion</label>
-                            <input type="text" name="producto" class="form-control" value="<?php echo htmlspecialchars($producto['descripcion']); ?>" required>
+                            <label>Producto</label>
+                            <input type="text" class="form-control" value="<?php echo htmlspecialchars(mayorista_nombre_producto($producto)); ?>" disabled>
                         </div>
                         <div class="form-group col-md-4">
                             <label>Marca</label>

@@ -82,24 +82,24 @@ while ($row = mysqli_fetch_assoc($serieQuery)) {
 
 $productosCantidad = mysqli_query(
     $conexion,
-    "SELECT p.descripcion, SUM(d.cantidad) AS cantidad
+    "SELECT p.codigo, p.descripcion, p.marca, p.modelo, p.color, p.tipo, SUM(d.cantidad) AS cantidad
      FROM detalle_venta d
      INNER JOIN ventas v ON d.id_venta = v.id
      INNER JOIN producto p ON d.id_producto = p.codproducto
      WHERE $whereVentas
-     GROUP BY d.id_producto, p.descripcion
+     GROUP BY d.id_producto, p.codigo, p.descripcion, p.marca, p.modelo, p.color, p.tipo
      ORDER BY cantidad DESC
      LIMIT 8"
 );
 
 $productosMonto = mysqli_query(
     $conexion,
-    "SELECT p.descripcion, SUM(d.cantidad * d.precio) AS monto
+    "SELECT p.codigo, p.descripcion, p.marca, p.modelo, p.color, p.tipo, SUM(d.cantidad * d.precio) AS monto
      FROM detalle_venta d
      INNER JOIN ventas v ON d.id_venta = v.id
      INNER JOIN producto p ON d.id_producto = p.codproducto
      WHERE $whereVentas
-     GROUP BY d.id_producto, p.descripcion
+     GROUP BY d.id_producto, p.codigo, p.descripcion, p.marca, p.modelo, p.color, p.tipo
      ORDER BY monto DESC
      LIMIT 8"
 );
@@ -186,7 +186,7 @@ include_once "includes/header.php";
                             <tbody>
                                 <?php while ($row = mysqli_fetch_assoc($productosCantidad)) { ?>
                                     <tr>
-                                        <td><?php echo htmlspecialchars($row['descripcion']); ?></td>
+                                        <td><?php echo htmlspecialchars(mayorista_nombre_producto($row)); ?></td>
                                         <td><?php echo (float) $row['cantidad']; ?></td>
                                     </tr>
                                 <?php } ?>
@@ -206,7 +206,7 @@ include_once "includes/header.php";
                             <tbody>
                                 <?php while ($row = mysqli_fetch_assoc($productosMonto)) { ?>
                                     <tr>
-                                        <td><?php echo htmlspecialchars($row['descripcion']); ?></td>
+                                        <td><?php echo htmlspecialchars(mayorista_nombre_producto($row)); ?></td>
                                         <td><?php echo mayorista_formatear_moneda($row['monto']); ?></td>
                                     </tr>
                                 <?php } ?>

@@ -114,7 +114,7 @@ if ($column_exists) {
                                 <tr>
                                     <td><?php echo $data['codproducto']; ?></td>
                                     <td><?php echo $data['codigo']; ?></td>
-                                    <td><?php echo $data['descripcion']; ?></td>
+                                    <td><?php echo htmlspecialchars(mayorista_nombre_producto($data)); ?></td>
                                     <td><?php echo $data['marca']; ?></td>
                                     <td>$<?php echo number_format($data['precio'], 2); ?></td>
                                     <td><span class="<?php echo $stock_class; ?>"><?php echo $stock_icon; ?><?php echo $data['existencia']; ?></span></td>
@@ -172,7 +172,7 @@ if ($column_exists) {
                                 <tr>
                                     <td><?php echo $data['codproducto']; ?></td>
                                     <td><?php echo $data['codigo']; ?></td>
-                                    <td><?php echo $data['descripcion']; ?></td>
+                                    <td><?php echo htmlspecialchars(mayorista_nombre_producto($data)); ?></td>
                                     <td><?php echo $data['marca']; ?></td>
                                     <td>$<?php echo number_format($data['precio'], 2); ?></td>
                                     <td><span class="<?php echo $stock_class; ?>"><?php echo $stock_icon; ?><?php echo $data['existencia']; ?></span></td>

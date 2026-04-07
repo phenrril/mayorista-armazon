@@ -409,6 +409,49 @@ function mayorista_tipos_producto()
     return array('receta', 'sol', 'clip-on');
 }
 
+function mayorista_formatear_tipo_producto($tipo)
+{
+    $tipo = trim((string) $tipo);
+    if ($tipo === '') {
+        return '';
+    }
+
+    return ucfirst(str_replace('-', ' ', $tipo));
+}
+
+function mayorista_nombre_producto($producto, $incluirCodigo = false)
+{
+    $codigo = trim((string) ($producto['codigo'] ?? ''));
+    $marca = trim((string) ($producto['marca'] ?? ''));
+    $modelo = trim((string) ($producto['modelo'] ?? ''));
+    $color = trim((string) ($producto['color'] ?? ''));
+    $tipo = mayorista_formatear_tipo_producto($producto['tipo'] ?? '');
+
+    $partes = array();
+    foreach (array($marca, $modelo, $color, $tipo) as $parte) {
+        if ($parte === '') {
+            continue;
+        }
+        if (!in_array($parte, $partes, true)) {
+            $partes[] = $parte;
+        }
+    }
+
+    $nombre = implode(' ', $partes);
+    if ($nombre === '') {
+        $nombre = trim((string) ($producto['descripcion'] ?? ''));
+    }
+    if ($nombre === '') {
+        $nombre = $codigo !== '' ? $codigo : 'Producto';
+    }
+
+    if ($incluirCodigo && $codigo !== '' && stripos($nombre, $codigo) !== 0) {
+        return $codigo . ' - ' . $nombre;
+    }
+
+    return $nombre;
+}
+
 function mayorista_modos_despacho()
 {
     return array(

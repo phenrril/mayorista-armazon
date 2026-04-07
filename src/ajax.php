@@ -41,6 +41,9 @@ function ajax_get_producto_query($conexion)
     if (mayorista_column_exists($conexion, 'producto', 'modelo')) {
         $fields[] = 'modelo';
     }
+    if (mayorista_column_exists($conexion, 'producto', 'color')) {
+        $fields[] = 'color';
+    }
     if (mayorista_column_exists($conexion, 'producto', 'tipo_material')) {
         $fields[] = 'tipo_material';
     }
@@ -192,15 +195,20 @@ if (isset($_GET['pro'])) {
     $productoQuery = ajax_get_producto_query($conexion);
     $condicionesBusqueda = array(
         "codigo LIKE '%$nombre%'",
-        "descripcion LIKE '%$nombre%'",
         "marca LIKE '%$nombre%'"
     );
 
     if (mayorista_column_exists($conexion, 'producto', 'modelo')) {
         $condicionesBusqueda[] = "modelo LIKE '%$nombre%'";
     }
+    if (mayorista_column_exists($conexion, 'producto', 'color')) {
+        $condicionesBusqueda[] = "color LIKE '%$nombre%'";
+    }
     if (mayorista_column_exists($conexion, 'producto', 'tipo_material')) {
         $condicionesBusqueda[] = "tipo_material LIKE '%$nombre%'";
+    }
+    if (mayorista_column_exists($conexion, 'producto', 'tipo')) {
+        $condicionesBusqueda[] = "tipo LIKE '%$nombre%'";
     }
 
     $producto = mysqli_query(
@@ -210,21 +218,24 @@ if (isset($_GET['pro'])) {
          WHERE estado = 1
          AND existencia > 0
          AND (" . implode(' OR ', $condicionesBusqueda) . ")
-         ORDER BY descripcion ASC
+         ORDER BY marca ASC, codigo ASC
          LIMIT 20"
     );
 
     while ($row = mysqli_fetch_assoc($producto)) {
+        $nombreProducto = mayorista_nombre_producto($row);
         $datos[] = array(
             'id' => (int) $row['codproducto'],
-            'label' => $row['codigo'] . ' - ' . $row['descripcion'],
-            'value' => $row['descripcion'],
+            'label' => mayorista_nombre_producto($row, true),
+            'value' => $nombreProducto,
+            'descripcion' => $nombreProducto,
             'precio' => mayorista_precio_producto($row, $tipoVenta),
             'precio_minorista' => (float) $row['precio'],
             'precio_mayorista' => isset($row['precio_mayorista']) ? (float) $row['precio_mayorista'] : (float) $row['precio'],
             'existencia' => (int) $row['existencia'],
             'marca' => $row['marca'] ?? '',
             'modelo' => $row['modelo'] ?? '',
+            'color' => $row['color'] ?? '',
             'tipo_material' => $row['tipo_material'] ?? '',
             'tipo' => $row['tipo'] ?? 'receta',
             'costo' => isset($row['costo']) ? (int) $row['costo'] : 0,
@@ -236,9 +247,10 @@ if (isset($_GET['pro'])) {
 
 if (isset($_GET['detalle'])) {
     $datos = array();
+    $productoQuery = ajax_get_producto_query($conexion);
     $query = mysqli_query(
         $conexion,
-        "SELECT d.id, d.id_producto, d.cantidad, d.precio_venta, d.total, p.codigo, p.descripcion
+        "SELECT d.id, d.id_producto, d.cantidad, d.precio_venta, d.total, $productoQuery
          FROM detalle_temp d
          INNER JOIN producto p ON d.id_producto = p.codproducto
          WHERE d.id_usuario = $id_user
@@ -250,7 +262,7 @@ if (isset($_GET['detalle'])) {
             'id' => (int) $row['id'],
             'id_producto' => (int) $row['id_producto'],
             'codigo' => $row['codigo'],
-            'descripcion' => $row['descripcion'],
+            'descripcion' => mayorista_nombre_producto($row),
             'cantidad' => (int) $row['cantidad'],
             'precio_venta' => (float) $row['precio_venta'],
             'sub_total' => (float) $row['total'],
@@ -541,7 +553,7 @@ if (isset($_POST['procesarVenta'])) {
     $queryFields = ajax_get_producto_query($conexion);
     $detalle = mysqli_query(
         $conexion,
-        "SELECT d.id, d.id_producto, d.cantidad, d.precio_venta, d.total, p.codigo, p.descripcion, $queryFields
+        "SELECT d.id, d.id_producto, d.cantidad, d.precio_venta, d.total, $queryFields
          FROM detalle_temp d
          INNER JOIN producto p ON d.id_producto = p.codproducto
          WHERE d.id_usuario = $id_user
@@ -649,7 +661,7 @@ if (isset($_POST['procesarVenta'])) {
 
             $stockDisponible = (int) $productoActual['existencia'];
             if ($stockDisponible < $cantidad) {
-                throw new Exception('Stock insuficiente para ' . ($productoActual['descripcion'] ?? $item['descripcion']));
+                throw new Exception('Stock insuficiente para ' . mayorista_nombre_producto($productoActual));
             }
 
             $camposDetalle = array(

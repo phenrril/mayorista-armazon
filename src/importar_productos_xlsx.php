@@ -413,6 +413,7 @@ try {
     $hasColor = mayorista_column_exists($conexion, 'producto', 'color');
     $hasTipoMaterial = mayorista_column_exists($conexion, 'producto', 'tipo_material');
     $hasTipo = mayorista_column_exists($conexion, 'producto', 'tipo');
+    $hasDescripcion = mayorista_column_exists($conexion, 'producto', 'descripcion');
     $hasPrecioBruto = mayorista_column_exists($conexion, 'producto', 'precio_bruto');
     $hasCosto = mayorista_column_exists($conexion, 'producto', 'costo');
 
@@ -433,7 +434,6 @@ try {
 
         $codigo = mayorista_limpiar_descripcion($row['codigo'] ?? '', 20);
         $marca = mayorista_limpiar_descripcion($row['nombre'] ?? '', 200);
-        $descripcion = mayorista_limpiar_descripcion($row['descripcion'] ?? '', 200);
         $tipoServicio = mayorista_limpiar_descripcion($row['tipo de producto servicio'] ?? '', 120);
         $precioVenta = mayorista_normalizar_importe($row['precio de venta'] ?? null);
         $precioCosto = mayorista_normalizar_importe($row['costo'] ?? null);
@@ -447,23 +447,21 @@ try {
             continue;
         }
 
-        if ($descripcion === '') {
-            $descripcion = $marca . ' ' . $codigo;
-        }
-
         $extraCodigo = importacion_productos_inferir_modelo_y_color($codigo);
-        $tipoMaterial = importacion_productos_inferir_tipo_material($descripcion, $marca, $tipoServicio);
+        $tipoMaterial = importacion_productos_inferir_tipo_material($row['descripcion'] ?? '', $marca, $tipoServicio);
         $tipoProducto = importacion_productos_inferir_tipo($tipoServicio);
         $precioBruto = $precioCosto !== null ? $precioCosto : 0;
 
         $campos = array(
-            'descripcion' => "'" . mysqli_real_escape_string($conexion, $descripcion) . "'",
             'precio' => $precioVenta,
             'existencia' => max(0, $stock),
             'usuario_id' => $idUser,
             'estado' => $estado,
             'marca' => "'" . mysqli_real_escape_string($conexion, $marca) . "'",
         );
+        if ($hasDescripcion) {
+            $campos['descripcion'] = "'" . mysqli_real_escape_string($conexion, $tipoProducto) . "'";
+        }
 
         if ($hasMayorista) {
             $campos['precio_mayorista'] = $precioVenta;

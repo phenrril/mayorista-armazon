@@ -31,13 +31,14 @@ if ($action === 'sales') {
     $arreglo = array();
     $query = mysqli_query(
         $conexion,
-        "SELECT descripcion, existencia
+        "SELECT codigo, descripcion, marca, modelo, color, tipo, existencia
          FROM producto
          WHERE existencia <= 10 AND existencia > 0 AND estado = 1
          ORDER BY existencia ASC
          LIMIT 10"
     );
     while ($data = mysqli_fetch_assoc($query)) {
+        $data['descripcion'] = mayorista_nombre_producto($data);
         $arreglo[] = $data;
     }
     chart_response($arreglo);
@@ -47,14 +48,15 @@ if ($action === 'polarChart') {
     $arreglo = array();
     $query = mysqli_query(
         $conexion,
-        "SELECT p.codproducto, p.descripcion, d.id_producto, d.cantidad, SUM(d.cantidad) as total
+        "SELECT p.codproducto, p.codigo, p.descripcion, p.marca, p.modelo, p.color, p.tipo, d.id_producto, d.cantidad, SUM(d.cantidad) as total
          FROM producto p
          INNER JOIN detalle_venta d ON p.codproducto = d.id_producto
-         GROUP BY d.id_producto, p.codproducto, p.descripcion
+         GROUP BY d.id_producto, p.codproducto, p.codigo, p.descripcion, p.marca, p.modelo, p.color, p.tipo
          ORDER BY total DESC
          LIMIT 5"
     );
     while ($data = mysqli_fetch_assoc($query)) {
+        $data['descripcion'] = mayorista_nombre_producto($data);
         $arreglo[] = $data;
     }
     chart_response($arreglo);
