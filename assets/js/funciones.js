@@ -612,6 +612,24 @@ $(function () {
 
     $('input[name="pago"]').on('change', actualizarCamposCheque);
     $('#cheque_plazo_dias, #cheque_fecha_base').on('change', actualizarCamposCheque);
+    $('#fecha_venta').on('change', function () {
+        const fechaVenta = $(this).val();
+        const hoy = new Date().toISOString().slice(0, 10);
+        if (fechaVenta && fechaVenta > hoy) {
+            $(this).val(hoy);
+            showCenteredAlert({
+                icon: 'warning',
+                title: 'La fecha no puede ser futura',
+                timer: 2200
+            });
+            return;
+        }
+
+        if ($('#cheque_fecha_base').length) {
+            $('#cheque_fecha_base').val(fechaVenta || hoy);
+            actualizarCamposCheque();
+        }
+    });
     actualizarCamposCheque();
 
     $('#btn_generar').on('click', function () {
@@ -633,6 +651,25 @@ $(function () {
             return;
         }
 
+        const fechaVenta = $('#fecha_venta').val();
+        const hoy = new Date().toISOString().slice(0, 10);
+        if (!fechaVenta) {
+            showCenteredAlert({
+                icon: 'warning',
+                title: 'Selecciona la fecha de la venta',
+                timer: 2200
+            });
+            return;
+        }
+        if (fechaVenta > hoy) {
+            showCenteredAlert({
+                icon: 'warning',
+                title: 'La fecha no puede ser futura',
+                timer: 2200
+            });
+            return;
+        }
+
         ventaEnProceso = true;
         btnGenerar.prop('disabled', true).addClass('disabled');
 
@@ -648,6 +685,7 @@ $(function () {
                 metodo_pago: metodoPago,
                 modo_despacho: $('#modo_despacho').val(),
                 observacion: $('#observacion_venta').val(),
+                fecha_venta: fechaVenta,
                 venta_token: $('#venta_token').val(),
                 cheque_plazo_dias: $('#cheque_plazo_dias').val(),
                 cheque_fecha_base: $('#cheque_fecha_base').val(),

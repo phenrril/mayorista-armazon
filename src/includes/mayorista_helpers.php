@@ -796,6 +796,20 @@ function mayorista_fecha_iso_valida($fecha)
     return count($partes) === 3 && checkdate((int) $partes[1], (int) $partes[2], (int) $partes[0]);
 }
 
+function mayorista_fecha_hora_desde_iso($fecha, $horaBase = null)
+{
+    if (!mayorista_fecha_iso_valida($fecha)) {
+        return null;
+    }
+
+    $hora = date('H:i:s');
+    if (is_string($horaBase) && preg_match('/\b(\d{2}:\d{2}:\d{2})\b/', $horaBase, $matches)) {
+        $hora = $matches[1];
+    }
+
+    return $fecha . ' ' . $hora;
+}
+
 function mayorista_normalizar_importe($valor)
 {
     if (is_string($valor)) {
@@ -1013,7 +1027,7 @@ function mayorista_validar_nuevo_cargo_cc($conexion, $idCliente, $montoCargo)
     );
 }
 
-function mayorista_registrar_movimiento_cc($conexion, $idCliente, $tipo, $monto, $descripcion, $idUsuario, $idVenta = null)
+function mayorista_registrar_movimiento_cc($conexion, $idCliente, $tipo, $monto, $descripcion, $idUsuario, $idVenta = null, $fecha = null)
 {
     if (!mayorista_table_exists($conexion, 'cuenta_corriente') || !mayorista_table_exists($conexion, 'movimientos_cc')) {
         return 0;
@@ -1037,13 +1051,23 @@ function mayorista_registrar_movimiento_cc($conexion, $idCliente, $tipo, $monto,
 
     $idCuenta = (int) $cuenta['id'];
     $ventaValue = $idVenta === 'NULL' ? 'NULL' : $idVenta;
+    $fechaSql = 'NOW()';
+    if (is_string($fecha)) {
+        $fecha = trim($fecha);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            $fecha = mayorista_fecha_hora_desde_iso($fecha);
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $fecha)) {
+            $fechaSql = "'" . mysqli_real_escape_string($conexion, $fecha) . "'";
+        }
+    }
 
     $insert = mysqli_query(
         $conexion,
         "INSERT INTO movimientos_cc (
             id_cuenta_corriente, id_venta, tipo, monto, descripcion, id_usuario, fecha
          ) VALUES (
-            $idCuenta, $ventaValue, '$tipo', $monto, '$descripcion', $idUsuario, NOW()
+            $idCuenta, $ventaValue, '$tipo', $monto, '$descripcion', $idUsuario, $fechaSql
          )"
     );
 

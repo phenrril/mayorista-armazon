@@ -447,9 +447,16 @@ if (isset($_POST['procesarVenta'])) {
     $metodo_pago = (int) ($_POST['metodo_pago'] ?? 1);
     $modoDespacho = trim($_POST['modo_despacho'] ?? 'A convenir');
     $observacion = mysqli_real_escape_string($conexion, trim($_POST['observacion'] ?? ''));
+    $fechaVentaInput = trim((string) ($_POST['fecha_venta'] ?? date('Y-m-d')));
     $chequePlazoDias = (int) ($_POST['cheque_plazo_dias'] ?? 30);
     $chequeFechaDeposito = trim((string) ($_POST['cheque_fecha_deposito'] ?? ''));
-    $fecha = date('Y-m-d H:i:s');
+    if (!mayorista_fecha_iso_valida($fechaVentaInput)) {
+        ajax_json(array('mensaje' => 'error', 'detalle' => 'La fecha de la venta no es válida.'));
+    }
+    if ($fechaVentaInput > date('Y-m-d')) {
+        ajax_json(array('mensaje' => 'error', 'detalle' => 'La fecha de la venta no puede ser futura.'));
+    }
+    $fecha = mayorista_fecha_hora_desde_iso($fechaVentaInput);
     if (!in_array($modoDespacho, mayorista_modos_despacho(), true)) {
         $modoDespacho = 'A convenir';
     }
@@ -673,7 +680,7 @@ if (isset($_POST['procesarVenta'])) {
                 'monto_total' => $abona,
                 'saldo_pendiente' => $abona,
                 'estado' => 'pendiente_confirmacion',
-                'fecha_compromiso' => date('Y-m-d'),
+                'fecha_compromiso' => $fechaVentaInput,
                 'fecha_vencimiento' => $chequeFechaDeposito,
                 'fecha_deposito' => $chequeFechaDeposito,
                 'descripcion' => 'Cheque recibido venta #' . $idVenta . ' (' . $chequePlazoDias . ' dias)',
@@ -700,7 +707,8 @@ if (isset($_POST['procesarVenta'])) {
                 $montoCc,
                 'Venta #' . $idVenta . ($observacion !== '' ? ' - ' . $observacion : ''),
                 $id_user,
-                $idVenta
+                $idVenta,
+                $fecha
             );
         } else {
             $cuenta = mayorista_obtener_cuenta_corriente($conexion, $id_cliente);
