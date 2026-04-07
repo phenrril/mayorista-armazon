@@ -24,6 +24,12 @@ $tiposMaterial = mayorista_tipos_material_producto();
 $alert = '';
 $previewProductos = array();
 
+function productos_normalizar_valor_filtro($valor)
+{
+    $valor = trim((string) $valor);
+    return $valor === '' ? '' : $valor;
+}
+
 if (!empty($_POST['action']) && $_POST['action'] === 'crear_producto') {
     $codigo = mysqli_real_escape_string($conexion, trim($_POST['codigo'] ?? ''));
     $marca = mysqli_real_escape_string($conexion, trim($_POST['marca'] ?? ''));
@@ -237,6 +243,37 @@ if (!empty($_POST['action']) && $_POST['action'] === 'ajuste_masivo') {
 }
 
 $query = mysqli_query($conexion, "SELECT * FROM producto ORDER BY codproducto DESC");
+$productosListado = array();
+$filtrosCatalogo = array(
+    'marca' => array(),
+    'modelo' => array(),
+    'color' => array(),
+    'tipo_material' => array(),
+    'tipo' => array(),
+);
+if ($query) {
+    while ($row = mysqli_fetch_assoc($query)) {
+        $productosListado[] = $row;
+        foreach (array_keys($filtrosCatalogo) as $campoFiltro) {
+            $valorFiltro = productos_normalizar_valor_filtro($row[$campoFiltro] ?? '');
+            if ($valorFiltro !== '') {
+                $filtrosCatalogo[$campoFiltro][$valorFiltro] = true;
+            }
+        }
+    }
+}
+foreach ($filtrosCatalogo as $campoFiltro => $valoresFiltro) {
+    $filtrosCatalogo[$campoFiltro] = array_keys($valoresFiltro);
+    natcasesort($filtrosCatalogo[$campoFiltro]);
+    $filtrosCatalogo[$campoFiltro] = array_values($filtrosCatalogo[$campoFiltro]);
+}
+
+$columnaMarca = 3;
+$columnaActual = 4;
+$columnaModelo = $hasModelo ? $columnaActual++ : null;
+$columnaColor = $hasColor ? $columnaActual++ : null;
+$columnaMaterial = $hasTipoMaterial ? $columnaActual++ : null;
+$columnaTipo = $hasTipo ? $columnaActual++ : null;
 include_once "includes/header.php";
 ?>
 <div class="productos-container">
@@ -310,7 +347,7 @@ include_once "includes/header.php";
         <div class="col-md-4">
             <div class="stat-box">
                 <span>Total productos</span>
-                <strong><?php echo $query ? mysqli_num_rows($query) : 0; ?></strong>
+                <strong><?php echo count($productosListado); ?></strong>
             </div>
         </div>
         <div class="col-md-4">
@@ -328,10 +365,80 @@ include_once "includes/header.php";
     </div>
 
     <div class="card card-modern">
-        <div class="card-header card-header-modern">
-            <i class="fas fa-list mr-2"></i> Catalogo
+        <div class="card-header card-header-modern d-flex justify-content-between align-items-center flex-wrap">
+            <span><i class="fas fa-list mr-2"></i> Catalogo</span>
+            <button class="btn btn-sm btn-outline-light mt-2 mt-md-0" type="button" data-toggle="collapse" data-target="#catalogoFiltros" aria-expanded="false" aria-controls="catalogoFiltros">
+                <i class="fas fa-filter mr-1"></i> Filtros
+            </button>
         </div>
         <div class="card-body">
+            <div class="collapse mb-4" id="catalogoFiltros">
+                <div class="card card-body bg-light border-0">
+                    <div class="form-row">
+                        <div class="form-group col-md-4 col-lg-3">
+                            <label class="mb-1">Marca</label>
+                            <select class="form-control js-product-filter" data-column="<?php echo $columnaMarca; ?>">
+                                <option value="">Todas</option>
+                                <?php foreach ($filtrosCatalogo['marca'] as $valorMarca) { ?>
+                                    <option value="<?php echo htmlspecialchars($valorMarca); ?>"><?php echo htmlspecialchars($valorMarca); ?></option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <?php if ($hasModelo) { ?>
+                        <div class="form-group col-md-4 col-lg-3">
+                            <label class="mb-1">Modelo</label>
+                            <select class="form-control js-product-filter" data-column="<?php echo (int) $columnaModelo; ?>">
+                                <option value="">Todos</option>
+                                <?php foreach ($filtrosCatalogo['modelo'] as $valorModelo) { ?>
+                                    <option value="<?php echo htmlspecialchars($valorModelo); ?>"><?php echo htmlspecialchars($valorModelo); ?></option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <?php } ?>
+                        <?php if ($hasColor) { ?>
+                        <div class="form-group col-md-4 col-lg-2">
+                            <label class="mb-1">Color</label>
+                            <select class="form-control js-product-filter" data-column="<?php echo (int) $columnaColor; ?>">
+                                <option value="">Todos</option>
+                                <?php foreach ($filtrosCatalogo['color'] as $valorColor) { ?>
+                                    <option value="<?php echo htmlspecialchars($valorColor); ?>"><?php echo htmlspecialchars($valorColor); ?></option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <?php } ?>
+                        <?php if ($hasTipoMaterial) { ?>
+                        <div class="form-group col-md-4 col-lg-2">
+                            <label class="mb-1">Material</label>
+                            <select class="form-control js-product-filter" data-column="<?php echo (int) $columnaMaterial; ?>">
+                                <option value="">Todos</option>
+                                <?php foreach ($filtrosCatalogo['tipo_material'] as $valorMaterial) { ?>
+                                    <option value="<?php echo htmlspecialchars($valorMaterial); ?>"><?php echo htmlspecialchars($valorMaterial); ?></option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <?php } ?>
+                        <?php if ($hasTipo) { ?>
+                        <div class="form-group col-md-4 col-lg-2">
+                            <label class="mb-1">Tipo</label>
+                            <select class="form-control js-product-filter" data-column="<?php echo (int) $columnaTipo; ?>">
+                                <option value="">Todos</option>
+                                <?php foreach ($filtrosCatalogo['tipo'] as $valorTipo) { ?>
+                                    <?php $tipoFiltroLabel = mayorista_formatear_tipo_producto(is_array($valorTipo) ? '' : (string) $valorTipo); ?>
+                                    <option value="<?php echo htmlspecialchars((string) $tipoFiltroLabel); ?>">
+                                        <?php echo htmlspecialchars((string) $tipoFiltroLabel); ?>
+                                    </option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <?php } ?>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnLimpiarFiltrosCatalogo">
+                            Limpiar filtros
+                        </button>
+                    </div>
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="table table-hover custom-dt-init" id="tbl">
                     <thead class="thead-dark">
@@ -353,8 +460,8 @@ include_once "includes/header.php";
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if ($query) {
-                            while ($data = mysqli_fetch_assoc($query)) {
+                        <?php if (!empty($productosListado)) {
+                            foreach ($productosListado as $data) {
                                 $estado = (int) $data['estado'] === 1
                                     ? '<span class="badge badge-success">Activo</span>'
                                     : '<span class="badge badge-secondary">Inactivo</span>';
@@ -632,19 +739,74 @@ include_once "includes/header.php";
 <script>
 window.addEventListener('load', function () {
     const $ = window.jQuery;
-    if (!$ || !$.fn.DataTable) {
+    if (!$) {
         return;
     }
 
     const $table = $('#tbl');
-    if ($table.length && !$.fn.DataTable.isDataTable($table)) {
-        $table.DataTable({
+    const $filtros = $('.js-product-filter');
+    const $btnLimpiar = $('#btnLimpiarFiltrosCatalogo');
+
+    function aplicarFiltrosFallback() {
+        if (!$table.length) {
+            return;
+        }
+
+        $table.find('tbody tr').each(function () {
+            const $fila = $(this);
+            let visible = true;
+
+            $filtros.each(function () {
+                const valor = String($(this).val() || '').trim().toLowerCase();
+                if (!valor) {
+                    return;
+                }
+
+                const columna = parseInt($(this).data('column'), 10);
+                const textoCelda = String($fila.find('td').eq(columna).text() || '').trim().toLowerCase();
+                if (textoCelda !== valor) {
+                    visible = false;
+                    return false;
+                }
+            });
+
+            $fila.toggle(visible);
+        });
+    }
+
+    function vincularFiltrosDataTable(tableApi) {
+        const escapeRegex = $.fn.dataTable.util.escapeRegex;
+        $filtros.on('change', function () {
+            const columna = parseInt($(this).data('column'), 10);
+            const valor = String($(this).val() || '').trim();
+            tableApi
+                .column(columna)
+                .search(valor ? '^' + escapeRegex(valor) + '$' : '', true, false)
+                .draw();
+        });
+
+        $btnLimpiar.on('click', function () {
+            $filtros.val('');
+            $filtros.trigger('change');
+        });
+    }
+
+    if ($.fn.DataTable && $table.length && !$.fn.DataTable.isDataTable($table)) {
+        const tableApi = $table.DataTable({
             order: [[0, 'desc']],
             columnDefs: [
                 { targets: -1, orderable: false }
             ]
         });
+        vincularFiltrosDataTable(tableApi);
+        return;
     }
+
+    $filtros.on('change', aplicarFiltrosFallback);
+    $btnLimpiar.on('click', function () {
+        $filtros.val('');
+        aplicarFiltrosFallback();
+    });
 });
 </script>
 

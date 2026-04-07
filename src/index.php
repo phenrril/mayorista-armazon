@@ -99,7 +99,7 @@ include_once "includes/header.php";
         <div class="col-md-4 mb-3">
             <div class="card kpi-card">
                 <div class="card-body">
-                    <span>Clientes con deuda</span>
+                    <span>Total ventas a cobrar</span>
                     <strong><?php echo (int) ($ccPendiente['clientes'] ?? 0); ?></strong>
                     <?php echo mayorista_formatear_moneda($ccPendiente['deuda'] ?? 0); ?>
                 </div>
@@ -126,7 +126,7 @@ include_once "includes/header.php";
                     <div class="alert-list">
                         <div class="alert-item">
                             <div>
-                                <strong>Clientes con deuda en cuenta corriente</strong>
+                                <strong>Total ventas a cobrar</strong>
                                 <span>Seguimiento de cobranzas pendientes.</span>
                             </div>
                             <div class="alert-badge is-info"><?php echo (int) ($ccPendiente['clientes'] ?? 0); ?></div>
