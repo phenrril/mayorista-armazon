@@ -59,7 +59,7 @@ include_once "includes/header.php";
                 <form method="post">
                     <div class="form-group">
                         <label>Producto</label>
-                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($producto['descripcion']); ?>" disabled>
+                        <input type="text" class="form-control" value="<?php echo htmlspecialchars(mayorista_nombre_producto($producto)); ?>" disabled>
                     </div>
                     <div class="form-group">
                         <label>Stock actual</label>

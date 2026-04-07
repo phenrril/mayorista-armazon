@@ -75,12 +75,12 @@ $egresos = $hasEgresos
 
 $productosReporte = mysqli_query(
     $conexion,
-    "SELECT p.descripcion, SUM(d.cantidad) AS vendidos, SUM(d.cantidad * d.precio) AS monto
+    "SELECT p.codigo, p.descripcion, p.marca, p.modelo, p.color, p.tipo, SUM(d.cantidad) AS vendidos, SUM(d.cantidad * d.precio) AS monto
      FROM detalle_venta d
      INNER JOIN ventas v ON d.id_venta = v.id
      INNER JOIN producto p ON d.id_producto = p.codproducto
      WHERE $whereVentas
-     GROUP BY d.id_producto, p.descripcion
+     GROUP BY d.id_producto, p.codigo, p.descripcion, p.marca, p.modelo, p.color, p.tipo
      ORDER BY vendidos DESC
      LIMIT 8"
 );
@@ -166,7 +166,7 @@ $pdf->Cell(38, 8, 'Monto', 1, 1, 'R');
 $pdf->SetFont('Arial', '', 9);
 while ($row = mysqli_fetch_assoc($productosReporte)) {
     report_require_space($pdf, 10);
-    $pdf->Cell(120, 8, utf8_decode(substr($row['descripcion'], 0, 60)), 1, 0, 'L');
+    $pdf->Cell(120, 8, utf8_decode(substr(mayorista_nombre_producto($row), 0, 60)), 1, 0, 'L');
     $pdf->Cell(28, 8, (float) $row['vendidos'], 1, 0, 'C');
     $pdf->Cell(38, 8, report_money($row['monto']), 1, 1, 'R');
 }

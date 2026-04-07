@@ -67,7 +67,7 @@ $cliente = mysqli_fetch_assoc($query_cliente);
 
 // Obtener detalle de productos
 $query_detalle = mysqli_query($conexion, 
-    "SELECT d.*, p.descripcion, p.codigo 
+    "SELECT d.*, p.descripcion, p.codigo, p.marca, p.modelo, p.color, p.tipo
      FROM detalle_venta d 
      INNER JOIN producto p ON d.id_producto = p.codproducto 
      WHERE d.id_venta = $id_venta");
@@ -270,7 +270,7 @@ while ($item = mysqli_fetch_assoc($query_detalle)) {
         $iva_item = $subtotal_item - $neto_item;
         
         $pdf->Cell(15, 5, number_format($cantidad, 0), 1, 0, 'C');
-        $pdf->Cell(75, 5, utf8_decode(substr($item['descripcion'], 0, 50)), 1, 0, 'L');
+        $pdf->Cell(75, 5, utf8_decode(substr(mayorista_nombre_producto($item), 0, 50)), 1, 0, 'L');
         $pdf->Cell(25, 5, '$' . number_format($precio, 2), 1, 0, 'R');
         $pdf->Cell(25, 5, '$' . number_format($neto_item, 2), 1, 0, 'R');
         $pdf->Cell(25, 5, '$' . number_format($iva_item, 2), 1, 0, 'R');
@@ -280,7 +280,7 @@ while ($item = mysqli_fetch_assoc($query_detalle)) {
     } else {
         // Factura C
         $pdf->Cell(15, 5, number_format($cantidad, 0), 1, 0, 'C');
-        $pdf->Cell(100, 5, utf8_decode(substr($item['descripcion'], 0, 65)), 1, 0, 'L');
+        $pdf->Cell(100, 5, utf8_decode(substr(mayorista_nombre_producto($item), 0, 65)), 1, 0, 'L');
         $pdf->Cell(35, 5, '$' . number_format($precio, 2), 1, 0, 'R');
         $pdf->Cell(40, 5, '$' . number_format($subtotal_item, 2), 1, 1, 'R');
     }

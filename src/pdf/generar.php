@@ -197,7 +197,7 @@ function remito_dibujar_tabla_header($pdf, $y, $widths)
     $pdf->Cell($widths[1], 8, 'MARCA', 1, 0, 'C', true);
     $pdf->Cell($widths[2], 8, 'MODELO', 1, 0, 'C', true);
     $pdf->Cell($widths[3], 8, 'COLOR', 1, 0, 'C', true);
-    $pdf->Cell($widths[4], 8, utf8_decode('DESCRIPCION'), 1, 0, 'C', true);
+    $pdf->Cell($widths[4], 8, 'TIPO', 1, 0, 'C', true);
     $pdf->Cell($widths[5], 8, utf8_decode('PRECIO UNIT.'), 1, 0, 'C', true);
     $pdf->Cell($widths[6], 8, 'IMPORTE', 1, 1, 'C', true);
 }
@@ -214,7 +214,7 @@ function remito_dibujar_fila($pdf, $y, $widths, $rowHeight, $fill, $item = null)
     $marca = $item ? remito_marca($item) : '';
     $modelo = $item ? remito_modelo($item) : '';
     $color = $item ? remito_color($item) : '';
-    $descripcion = $item ? trim((string) ($item['descripcion'] ?? '')) : '';
+    $descripcion = $item ? mayorista_formatear_tipo_producto($item['tipo'] ?? '') : '';
     $precio = $item ? money_pdf($item['precio']) : '';
     $importe = $item ? money_pdf(((float) $item['cantidad']) * ((float) $item['precio'])) : '';
 

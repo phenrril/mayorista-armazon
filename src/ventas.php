@@ -158,7 +158,7 @@ include_once "includes/header.php";
         <div class="col-lg-5">
             <div class="product-search-box mb-4">
                 <h5 class="mb-3"><i class="fas fa-search mr-2"></i> Buscar producto</h5>
-                <input id="producto" class="form-control form-control-modern" type="text" placeholder="Código o descripción del producto">
+                <input id="producto" class="form-control form-control-modern" type="text" placeholder="Código, marca, modelo o tipo">
                 <small class="text-muted d-block mt-2">El precio sugerido cambia según el tipo de venta seleccionado.</small>
             </div>
 

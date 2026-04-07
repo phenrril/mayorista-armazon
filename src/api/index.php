@@ -175,13 +175,23 @@ if ($segments[0] === 'productos' && $method === 'GET') {
     $q = mysqli_real_escape_string($conexion, trim($_GET['q'] ?? ''));
     $result = mysqli_query(
         $conexion,
-        "SELECT codproducto, codigo, descripcion, precio, existencia" .
+        "SELECT codproducto, codigo, descripcion, precio, existencia, marca" .
         (mayorista_column_exists($conexion, 'producto', 'precio_mayorista') ? ", precio_mayorista" : "") .
+        (mayorista_column_exists($conexion, 'producto', 'modelo') ? ", modelo" : "") .
+        (mayorista_column_exists($conexion, 'producto', 'color') ? ", color" : "") .
+        (mayorista_column_exists($conexion, 'producto', 'tipo_material') ? ", tipo_material" : "") .
         (mayorista_column_exists($conexion, 'producto', 'tipo') ? ", tipo" : "") .
         " FROM producto
          WHERE estado = 1
-         AND (codigo LIKE '%$q%' OR descripcion LIKE '%$q%')
-         ORDER BY descripcion ASC
+         AND (
+            codigo LIKE '%$q%'
+            OR marca LIKE '%$q%'" .
+            (mayorista_column_exists($conexion, 'producto', 'modelo') ? " OR modelo LIKE '%$q%'" : "") .
+            (mayorista_column_exists($conexion, 'producto', 'color') ? " OR color LIKE '%$q%'" : "") .
+            (mayorista_column_exists($conexion, 'producto', 'tipo_material') ? " OR tipo_material LIKE '%$q%'" : "") .
+            (mayorista_column_exists($conexion, 'producto', 'tipo') ? " OR tipo LIKE '%$q%'" : "") .
+         ")
+         ORDER BY marca ASC, codigo ASC
          LIMIT 20"
     );
 
@@ -190,10 +200,14 @@ if ($segments[0] === 'productos' && $method === 'GET') {
         $productos[] = array(
             'id' => (int) $row['codproducto'],
             'codigo' => $row['codigo'],
-            'descripcion' => $row['descripcion'],
+            'nombre' => mayorista_nombre_producto($row),
             'precio_minorista' => (float) $row['precio'],
             'precio_mayorista' => isset($row['precio_mayorista']) ? (float) $row['precio_mayorista'] : (float) $row['precio'],
             'stock' => (int) $row['existencia'],
+            'marca' => $row['marca'] ?? '',
+            'modelo' => $row['modelo'] ?? '',
+            'color' => $row['color'] ?? '',
+            'tipo_material' => $row['tipo_material'] ?? '',
             'tipo' => $row['tipo'] ?? 'receta',
         );
     }

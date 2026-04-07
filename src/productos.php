@@ -11,6 +11,7 @@ if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
 $id_user = (int) $_SESSION['idUser'];
 mayorista_requiere_permiso($conexion, $id_user, array('productos'));
 
+$hasDescripcion = mayorista_column_exists($conexion, 'producto', 'descripcion');
 $hasMayorista = mayorista_column_exists($conexion, 'producto', 'precio_mayorista');
 $hasTipo = mayorista_column_exists($conexion, 'producto', 'tipo');
 $hasModelo = mayorista_column_exists($conexion, 'producto', 'modelo');
@@ -25,7 +26,6 @@ $previewProductos = array();
 
 if (!empty($_POST['action']) && $_POST['action'] === 'crear_producto') {
     $codigo = mysqli_real_escape_string($conexion, trim($_POST['codigo'] ?? ''));
-    $descripcion = mysqli_real_escape_string($conexion, trim($_POST['producto'] ?? ''));
     $marca = mysqli_real_escape_string($conexion, trim($_POST['marca'] ?? ''));
     $modelo = mysqli_real_escape_string($conexion, trim($_POST['modelo'] ?? ''));
     $color = mysqli_real_escape_string($conexion, trim($_POST['color'] ?? ''));
@@ -45,19 +45,19 @@ if (!empty($_POST['action']) && $_POST['action'] === 'crear_producto') {
     }
 
     if (
-        $codigo === '' || $descripcion === '' || $marca === '' || $precio < 0 || $cantidad < 0
+        $codigo === '' || $marca === '' || $precio < 0 || $cantidad < 0
         || ($hasModelo && $modelo === '')
         || ($hasColor && $color === '')
         || ($hasTipoMaterial && $tipoMaterial === '')
     ) {
-        $alert = '<div class="alert alert-warning">Completa codigo, descripcion, marca, modelo, color, material, precio y stock inicial.</div>';
+        $alert = '<div class="alert alert-warning">Completa codigo, marca, modelo, color, material, tipo, precio y stock inicial.</div>';
     } else {
         $check = mysqli_query($conexion, "SELECT 1 FROM producto WHERE codigo = '$codigo' LIMIT 1");
         if ($check && mysqli_num_rows($check) > 0) {
             $alert = '<div class="alert alert-warning">Ya existe un producto con ese codigo.</div>';
         } else {
-            $campos = array('codigo', 'descripcion', 'marca', 'precio', 'existencia', 'usuario_id');
-            $valores = array("'$codigo'", "'$descripcion'", "'$marca'", $precio, $cantidad, $id_user);
+            $campos = array('codigo', 'marca', 'precio', 'existencia', 'usuario_id');
+            $valores = array("'$codigo'", "'$marca'", $precio, $cantidad, $id_user);
 
             if ($hasModelo) {
                 $campos[] = 'modelo';
@@ -83,6 +83,10 @@ if (!empty($_POST['action']) && $_POST['action'] === 'crear_producto') {
             if ($hasTipo) {
                 $campos[] = 'tipo';
                 $valores[] = "'$tipo'";
+            }
+            if ($hasDescripcion) {
+                $campos[] = 'descripcion';
+                $valores[] = "'" . mysqli_real_escape_string($conexion, $tipo) . "'";
             }
             if ($hasCosto) {
                 $campos[] = 'costo';
@@ -188,9 +192,12 @@ if (!empty($_POST['action']) && $_POST['action'] === 'ajuste_masivo') {
             $alert = '<div class="alert alert-warning">Definí al menos un cambio para aplicar en la edición masiva.</div>';
         } elseif ($accionMasiva === 'preview') {
             $alert = '<div class="alert alert-info">Se previsualizaron ' . $totalAfectados . ' producto(s) afectados por la edición masiva.</div>';
-            $camposPreview = array('codproducto', 'codigo', 'descripcion', 'marca', 'precio', 'existencia');
+            $camposPreview = array('codproducto', 'codigo', 'marca', 'precio', 'existencia');
             if ($hasModelo) {
                 $camposPreview[] = 'modelo';
+            }
+            if ($hasColor) {
+                $camposPreview[] = 'color';
             }
             if ($hasTipoMaterial) {
                 $camposPreview[] = 'tipo_material';
@@ -207,7 +214,7 @@ if (!empty($_POST['action']) && $_POST['action'] === 'ajuste_masivo') {
                 "SELECT " . implode(', ', $camposPreview) . "
                  FROM producto
                  WHERE $whereSql
-                 ORDER BY marca ASC, descripcion ASC
+                 ORDER BY marca ASC, codigo ASC
                  LIMIT 15"
             );
             if ($previewListado) {
@@ -268,7 +275,7 @@ include_once "includes/header.php";
                         <thead class="thead-dark">
                             <tr>
                                 <th>Código</th>
-                                <th>Descripción</th>
+                                <th>Producto</th>
                                 <th>Marca</th>
                                 <?php if ($hasModelo) { ?><th>Modelo</th><?php } ?>
                                 <?php if ($hasTipoMaterial) { ?><th>Material</th><?php } ?>
@@ -282,7 +289,7 @@ include_once "includes/header.php";
                             <?php foreach ($previewProductos as $previewProducto) { ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($previewProducto['codigo']); ?></td>
-                                    <td><?php echo htmlspecialchars($previewProducto['descripcion']); ?></td>
+                                    <td><?php echo htmlspecialchars(mayorista_nombre_producto($previewProducto)); ?></td>
                                     <td><?php echo htmlspecialchars($previewProducto['marca']); ?></td>
                                     <?php if ($hasModelo) { ?><td><?php echo htmlspecialchars($previewProducto['modelo'] ?? '-'); ?></td><?php } ?>
                                     <?php if ($hasTipoMaterial) { ?><td><?php echo htmlspecialchars($previewProducto['tipo_material'] ?? '-'); ?></td><?php } ?>
@@ -331,7 +338,7 @@ include_once "includes/header.php";
                         <tr>
                             <th>ID</th>
                             <th>Codigo</th>
-                            <th>Descripcion</th>
+                            <th>Producto</th>
                             <th>Marca</th>
                             <?php if ($hasModelo) { ?><th>Modelo</th><?php } ?>
                             <?php if ($hasColor) { ?><th>Color</th><?php } ?>
@@ -356,7 +363,7 @@ include_once "includes/header.php";
                             <tr>
                                 <td><?php echo $data['codproducto']; ?></td>
                                 <td><?php echo htmlspecialchars($data['codigo']); ?></td>
-                                <td><?php echo htmlspecialchars($data['descripcion']); ?></td>
+                                <td><?php echo htmlspecialchars(mayorista_nombre_producto($data)); ?></td>
                                 <td><?php echo htmlspecialchars($data['marca']); ?></td>
                                 <?php if ($hasModelo) { ?><td><?php echo htmlspecialchars($data['modelo'] ?? '-'); ?></td><?php } ?>
                                 <?php if ($hasColor) { ?><td><?php echo htmlspecialchars($data['color'] ?? '-'); ?></td><?php } ?>
@@ -411,12 +418,6 @@ include_once "includes/header.php";
                             <div class="form-group">
                                 <label>Codigo</label>
                                 <input type="text" name="codigo" class="form-control" required>
-                            </div>
-                        </div>
-                        <div class="col-md-8">
-                            <div class="form-group">
-                                <label>Descripcion</label>
-                                <input type="text" name="producto" class="form-control" required>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -484,7 +485,7 @@ include_once "includes/header.php";
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label>Tipo</label>
-                                    <select name="tipo" class="form-control">
+                                    <select name="tipo" class="form-control" required>
                                         <?php foreach ($tiposProducto as $tipoProducto) { ?>
                                             <option value="<?php echo htmlspecialchars($tipoProducto); ?>">
                                                 <?php echo htmlspecialchars(ucfirst(str_replace('-', ' ', $tipoProducto))); ?>

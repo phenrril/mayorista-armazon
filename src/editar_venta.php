@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stockDisponible = $stockActual + (int) ($cantidadesAnteriores[$idProducto] ?? 0);
             $cantidadNueva = (int) ($cantidadesNuevas[$idProducto] ?? 0);
             if ($cantidadNueva > $stockDisponible) {
-                $errorStock = 'Stock insuficiente para ' . $producto['descripcion'] . '. Disponible para edición: ' . $stockDisponible . '.';
+                $errorStock = 'Stock insuficiente para ' . mayorista_nombre_producto($producto) . '. Disponible para edición: ' . $stockDisponible . '.';
                 break;
             }
             $stockFinal[$idProducto] = $stockDisponible - $cantidadNueva;
@@ -253,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $detalleVenta = mysqli_query(
     $conexion,
-    "SELECT dv.*, p.codigo, p.descripcion
+    "SELECT dv.*, p.codigo, p.marca, p.modelo, p.color, p.tipo, p.descripcion
      FROM detalle_venta dv
      INNER JOIN producto p ON dv.id_producto = p.codproducto
      WHERE dv.id_venta = $idVenta
@@ -299,8 +299,8 @@ include_once "includes/header.php";
                                                 <input
                                                     type="text"
                                                     class="form-control producto-buscador"
-                                                    value="<?php echo htmlspecialchars($row['codigo'] . ' - ' . $row['descripcion']); ?>"
-                                                    placeholder="Escribí código o descripción"
+                                                    value="<?php echo htmlspecialchars(mayorista_nombre_producto($row, true)); ?>"
+                                                    placeholder="Escribí código, marca, modelo o tipo"
                                                     autocomplete="off"
                                                     required
                                                 >
@@ -350,7 +350,7 @@ include_once "includes/header.php";
                 type="text"
                 class="form-control producto-buscador"
                 value=""
-                placeholder="Escribí 2 o 3 letras para buscar"
+                placeholder="Escribí código, marca, modelo o tipo"
                 autocomplete="off"
                 required
             >

@@ -198,12 +198,12 @@ $clientesMora = $hasCcTables
 
 $productosReporte = mysqli_query(
     $conexion,
-    "SELECT p.descripcion, p.existencia, SUM(d.cantidad) AS vendidos, SUM(d.cantidad * d.precio) AS monto
+    "SELECT p.codigo, p.descripcion, p.marca, p.modelo, p.color, p.tipo, p.existencia, SUM(d.cantidad) AS vendidos, SUM(d.cantidad * d.precio) AS monto
      FROM detalle_venta d
      INNER JOIN ventas v ON d.id_venta = v.id
      INNER JOIN producto p ON d.id_producto = p.codproducto
      WHERE $whereVentas
-     GROUP BY d.id_producto, p.descripcion, p.existencia
+     GROUP BY d.id_producto, p.codigo, p.descripcion, p.marca, p.modelo, p.color, p.tipo, p.existencia
      ORDER BY vendidos DESC
      LIMIT 10"
 );
@@ -337,7 +337,7 @@ include_once "includes/header.php";
                             <tbody>
                                 <?php while ($row = mysqli_fetch_assoc($productosReporte)) { ?>
                                     <tr>
-                                        <td><?php echo htmlspecialchars($row['descripcion']); ?></td>
+                                        <td><?php echo htmlspecialchars(mayorista_nombre_producto($row)); ?></td>
                                         <td><?php echo (int) $row['existencia']; ?></td>
                                         <td><?php echo (float) $row['vendidos']; ?></td>
                                         <td><?php echo mayorista_formatear_moneda($row['monto']); ?></td>
