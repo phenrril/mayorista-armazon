@@ -9,6 +9,7 @@ class MayoristaBrandedPdf extends FPDF
     protected $footerInstagramText = '';
     protected $footerNoteLines = array();
     protected $footerHeight = 26;
+    protected $footerTotalPages = 0;
 
     public function setBrandFooter(
         array $brandLogos,
@@ -36,6 +37,11 @@ class MayoristaBrandedPdf extends FPDF
         return $this->footerHeight;
     }
 
+    public function setFooterPagination($totalPages)
+    {
+        $this->footerTotalPages = max(0, (int) $totalPages);
+    }
+
     public function Footer()
     {
         if (
@@ -43,6 +49,7 @@ class MayoristaBrandedPdf extends FPDF
             && $this->footerWhatsappText === ''
             && $this->footerInstagramText === ''
             && empty($this->footerNoteLines)
+            && $this->footerTotalPages <= 1
         ) {
             return;
         }
@@ -55,6 +62,14 @@ class MayoristaBrandedPdf extends FPDF
         $this->SetDrawColor(222, 226, 232);
         $this->SetLineWidth(0.2);
         $this->Line($left, $topY, $right, $topY);
+
+        if ($this->footerTotalPages > 1) {
+            $this->SetFont('Arial', 'B', 8.4);
+            $this->SetTextColor(110, 118, 128);
+            $this->SetXY($left, $topY + 1.5);
+            $this->Cell($right - $left, 4, utf8_decode('Pagina ' . $this->PageNo() . '/' . $this->footerTotalPages), 0, 1, 'R');
+            $currentY += 4.2;
+        }
 
         if (!empty($this->footerNoteLines)) {
             foreach ($this->footerNoteLines as $line) {

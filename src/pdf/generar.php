@@ -238,8 +238,7 @@ $pdf->setBrandFooter(
     $footerAssets['instagram_text']
 );
 $pdf->SetMargins(12, 12, 12);
-$pdf->SetAutoPageBreak(true, $pdf->getFooterHeight() + 6);
-$pdf->AddPage();
+$pdf->SetAutoPageBreak(false);
 
 $brandLogoPath = realpath(__DIR__ . '/../../assets/logo-pdf-clean-white.png');
 $items = array();
@@ -255,8 +254,8 @@ $totalCc = round(isset($ventaData['monto_cc']) ? (float) $ventaData['monto_cc'] 
 $columnas = array(12, 28, 38, 20, 36, 26, 26);
 $rowHeight = 6.6;
 $minRowsLastPage = 10;
-$maxRowsLastPage = 18;
-$maxRowsRegularPage = 24;
+$maxRowsLastPage = 16;
+$maxRowsRegularPage = 21;
 $chunks = array();
 $totalItems = count($items);
 
@@ -274,10 +273,10 @@ if (empty($chunks)) {
     $chunks[] = array();
 }
 
+$pdf->setFooterPagination(count($chunks));
+
 foreach ($chunks as $pageIndex => $pageItems) {
-    if ($pageIndex > 0) {
-        $pdf->AddPage();
-    }
+    $pdf->AddPage();
 
     $tableHeaderY = remito_dibujar_header($pdf, $brandLogoPath, $ventaData);
     remito_dibujar_tabla_header($pdf, $tableHeaderY, $columnas);
