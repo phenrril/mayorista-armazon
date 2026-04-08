@@ -268,6 +268,12 @@ foreach ($filtrosCatalogo as $campoFiltro => $valoresFiltro) {
     $filtrosCatalogo[$campoFiltro] = array_values($filtrosCatalogo[$campoFiltro]);
 }
 
+$totalProductosCatalogo = count($productosListado);
+$totalUnidadesCatalogo = 0;
+foreach ($productosListado as $productoListado) {
+    $totalUnidadesCatalogo += (int) ($productoListado['existencia'] ?? 0);
+}
+
 $columnaMarca = 3;
 $columnaActual = 4;
 $columnaModelo = $hasModelo ? $columnaActual++ : null;
@@ -344,19 +350,25 @@ include_once "includes/header.php";
     <?php } ?>
 
     <div class="row">
-        <div class="col-md-4">
+        <div class="col-md-6 col-lg-3">
             <div class="stat-box">
                 <span>Total productos</span>
-                <strong><?php echo count($productosListado); ?></strong>
+                <strong id="js-total-productos"><?php echo $totalProductosCatalogo; ?></strong>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-6 col-lg-3">
+            <div class="stat-box">
+                <span>Total unidades</span>
+                <strong id="js-total-unidades"><?php echo $totalUnidadesCatalogo; ?></strong>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
             <div class="stat-box">
                 <span>Con stock</span>
                 <strong><?php echo mysqli_num_rows(mysqli_query($conexion, "SELECT 1 FROM producto WHERE existencia > 0")); ?></strong>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-6 col-lg-3">
             <div class="stat-box">
                 <span>Sin stock</span>
                 <strong><?php echo mysqli_num_rows(mysqli_query($conexion, "SELECT 1 FROM producto WHERE existencia <= 0")); ?></strong>
@@ -467,7 +479,7 @@ include_once "includes/header.php";
                                     : '<span class="badge badge-secondary">Inactivo</span>';
                                 $stockClass = (int) $data['existencia'] > 0 ? 'text-success' : 'text-danger';
                         ?>
-                            <tr>
+                            <tr data-stock="<?php echo (int) $data['existencia']; ?>">
                                 <td><?php echo $data['codproducto']; ?></td>
                                 <td><?php echo htmlspecialchars($data['codigo']); ?></td>
                                 <td><?php echo htmlspecialchars(mayorista_nombre_producto($data)); ?></td>
@@ -746,6 +758,25 @@ window.addEventListener('load', function () {
     const $table = $('#tbl');
     const $filtros = $('.js-product-filter');
     const $btnLimpiar = $('#btnLimpiarFiltrosCatalogo');
+    const $totalProductos = $('#js-total-productos');
+    const $totalUnidades = $('#js-total-unidades');
+
+    function actualizarTotales($filas) {
+        if (!$totalProductos.length || !$totalUnidades.length) {
+            return;
+        }
+
+        let totalProductos = 0;
+        let totalUnidades = 0;
+
+        $filas.each(function () {
+            totalProductos += 1;
+            totalUnidades += parseInt($(this).data('stock'), 10) || 0;
+        });
+
+        $totalProductos.text(totalProductos);
+        $totalUnidades.text(totalUnidades);
+    }
 
     function aplicarFiltrosFallback() {
         if (!$table.length) {
@@ -772,6 +803,8 @@ window.addEventListener('load', function () {
 
             $fila.toggle(visible);
         });
+
+        actualizarTotales($table.find('tbody tr:visible'));
     }
 
     function vincularFiltrosDataTable(tableApi) {
@@ -789,6 +822,12 @@ window.addEventListener('load', function () {
             $filtros.val('');
             $filtros.trigger('change');
         });
+
+        tableApi.on('draw', function () {
+            actualizarTotales($(tableApi.rows({ search: 'applied' }).nodes()));
+        });
+
+        actualizarTotales($(tableApi.rows({ search: 'applied' }).nodes()));
     }
 
     if ($.fn.DataTable && $table.length && !$.fn.DataTable.isDataTable($table)) {
