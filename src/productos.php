@@ -22,7 +22,13 @@ $hasCosto = mayorista_column_exists($conexion, 'producto', 'costo');
 $tiposProducto = mayorista_tipos_producto();
 $tiposMaterial = mayorista_tipos_material_producto();
 $alert = '';
+$flashMessage = '';
 $previewProductos = array();
+
+if (!empty($_SESSION['mensaje'])) {
+    $flashMessage = '<div class="alert alert-info">' . htmlspecialchars((string) $_SESSION['mensaje']) . '</div>';
+    unset($_SESSION['mensaje']);
+}
 
 function productos_normalizar_valor_filtro($valor)
 {
@@ -304,6 +310,7 @@ include_once "includes/header.php";
         </div>
     <?php } ?>
 
+    <?php echo $flashMessage; ?>
     <?php echo $alert; ?>
 
     <?php if (!empty($previewProductos)) { ?>
@@ -500,6 +507,14 @@ include_once "includes/header.php";
                                     <a href="editar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-success" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-danger js-eliminar-producto"
+                                        title="Eliminar"
+                                        data-id="<?php echo (int) $data['codproducto']; ?>"
+                                        data-producto="<?php echo htmlspecialchars(mayorista_nombre_producto($data), ENT_QUOTES, 'UTF-8'); ?>">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
                                     <?php if ((int) $data['estado'] === 1) { ?>
                                         <a href="inactivar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-warning confirmar-inactivar" title="Inactivar">
                                             <i class="fas fa-ban"></i>
@@ -829,6 +844,51 @@ window.addEventListener('load', function () {
 
         actualizarTotales($(tableApi.rows({ search: 'applied' }).nodes()));
     }
+
+    $(document).on('click', '.js-eliminar-producto', function () {
+        const idProducto = parseInt($(this).data('id'), 10);
+        const nombreProducto = String($(this).data('producto') || 'este producto').trim();
+
+        if (!idProducto) {
+            return;
+        }
+
+        const ejecutarEliminacion = function () {
+            const form = document.createElement('form');
+            form.method = 'post';
+            form.action = 'eliminar_producto.php';
+
+            const inputId = document.createElement('input');
+            inputId.type = 'hidden';
+            inputId.name = 'id';
+            inputId.value = String(idProducto);
+            form.appendChild(inputId);
+
+            document.body.appendChild(form);
+            form.submit();
+        };
+
+        if (window.Swal) {
+            window.Swal.fire({
+                icon: 'warning',
+                title: 'Eliminar producto',
+                text: 'Seguro queres eliminar "' + nombreProducto + '"?',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true
+            }).then(function (result) {
+                if (result.isConfirmed) {
+                    ejecutarEliminacion();
+                }
+            });
+            return;
+        }
+
+        if (window.confirm('Seguro queres eliminar "' + nombreProducto + '"?')) {
+            ejecutarEliminacion();
+        }
+    });
 
     if ($.fn.DataTable && $table.length && !$.fn.DataTable.isDataTable($table)) {
         const tableApi = $table.DataTable({
