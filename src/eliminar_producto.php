@@ -18,8 +18,8 @@ if (empty($existe) && $id_user != 1) {
     exit();
 }
 
-if (!empty($_GET['id'])) {
-    $id = intval($_GET['id']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' || !empty($_GET['id'])) {
+    $id = (int) ($_POST['id'] ?? $_GET['id'] ?? 0);
     if ($id > 0) {
         // Eliminar el producto de la base de datos directamente
         $query_delete = mysqli_query($conexion, "DELETE FROM producto WHERE codproducto = $id");

@@ -39,217 +39,240 @@ if (mayorista_venta_tiene_factura_aprobada($conexion, $idVenta)) {
 $tipoVenta = mayorista_tipo_venta_valido($venta['tipo_venta'] ?? 'minorista');
 $hasMayorista = mayorista_column_exists($conexion, 'producto', 'precio_mayorista');
 $alert = '';
+$fechaVentaActual = !empty($venta['fecha']) ? date('Y-m-d', strtotime($venta['fecha'])) : date('Y-m-d');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $productos = $_POST['id_producto'] ?? array();
     $cantidades = $_POST['cantidad'] ?? array();
     $precios = $_POST['precio'] ?? array();
+    $fechaVentaInput = trim((string) ($_POST['fecha_venta'] ?? $fechaVentaActual));
     $abona = round((float) ($venta['abona'] ?? 0), 2);
     $metodoPago = (int) ($venta['id_metodo'] ?? 1);
     $idCliente = (int) ($venta['id_cliente'] ?? 0);
+    $horaVentaOriginal = !empty($venta['fecha']) ? date('H:i:s', strtotime($venta['fecha'])) : date('H:i:s');
+    $fechaVentaSql = mayorista_fecha_hora_desde_iso($fechaVentaInput, $horaVentaOriginal);
 
-    $nuevosItems = array();
-    foreach ($productos as $index => $idProductoRaw) {
-        $idProducto = (int) $idProductoRaw;
-        $cantidad = max(0, (int) ($cantidades[$index] ?? 0));
-        $precio = round((float) ($precios[$index] ?? 0), 2);
-        if ($idProducto <= 0 || $cantidad <= 0 || $precio < 0) {
-            continue;
-        }
-
-        $nuevosItems[] = array(
-            'id_producto' => $idProducto,
-            'cantidad' => $cantidad,
-            'precio' => $precio,
-        );
-    }
-
-    if (empty($nuevosItems)) {
-        $alert = '<div class="alert alert-danger">La venta debe tener al menos un producto.</div>';
+    if (!mayorista_fecha_iso_valida($fechaVentaInput)) {
+        $alert = '<div class="alert alert-danger">La fecha de la nota no es válida.</div>';
+    } elseif ($fechaVentaInput > date('Y-m-d')) {
+        $alert = '<div class="alert alert-danger">La fecha de la nota no puede ser futura.</div>';
     } else {
-        $detalleActualQuery = mysqli_query($conexion, "SELECT * FROM detalle_venta WHERE id_venta = $idVenta");
-        $detalleActual = array();
-        $cantidadesAnteriores = array();
-        if ($detalleActualQuery) {
-            while ($row = mysqli_fetch_assoc($detalleActualQuery)) {
-                $detalleActual[] = $row;
-                $idProductoDetalle = (int) $row['id_producto'];
-                $cantidadesAnteriores[$idProductoDetalle] = ($cantidadesAnteriores[$idProductoDetalle] ?? 0) + (int) $row['cantidad'];
-            }
-        }
-
-        $cantidadesNuevas = array();
-        $idsProductos = array();
-        foreach ($nuevosItems as $item) {
-            $cantidadesNuevas[$item['id_producto']] = ($cantidadesNuevas[$item['id_producto']] ?? 0) + $item['cantidad'];
-            $idsProductos[$item['id_producto']] = true;
-        }
-        foreach (array_keys($cantidadesAnteriores) as $idProductoAnterior) {
-            $idsProductos[$idProductoAnterior] = true;
-        }
-
-        $productosData = array();
-        if (!empty($idsProductos)) {
-            $idsSql = implode(',', array_map('intval', array_keys($idsProductos)));
-            $queryProductos = mysqli_query($conexion, "SELECT * FROM producto WHERE codproducto IN ($idsSql)");
-            while ($row = mysqli_fetch_assoc($queryProductos)) {
-                $productosData[(int) $row['codproducto']] = $row;
-            }
-        }
-
-        $totalNuevo = 0;
-        $precioModificado = 0;
-        $stockFinal = array();
-        $errorStock = '';
-
-        foreach ($idsProductos as $idProducto => $_unused) {
-            if (!isset($productosData[$idProducto])) {
-                $errorStock = 'Uno de los productos seleccionados ya no existe.';
-                break;
-            }
-
-            $producto = $productosData[$idProducto];
-            $stockActual = (int) $producto['existencia'];
-            $stockDisponible = $stockActual + (int) ($cantidadesAnteriores[$idProducto] ?? 0);
-            $cantidadNueva = (int) ($cantidadesNuevas[$idProducto] ?? 0);
-            if ($cantidadNueva > $stockDisponible) {
-                $errorStock = 'Stock insuficiente para ' . mayorista_nombre_producto($producto) . '. Disponible para edición: ' . $stockDisponible . '.';
-                break;
-            }
-            $stockFinal[$idProducto] = $stockDisponible - $cantidadNueva;
-        }
-
-        foreach ($nuevosItems as $item) {
-            $producto = $productosData[$item['id_producto']] ?? null;
-            if (!$producto) {
+        $nuevosItems = array();
+        foreach ($productos as $index => $idProductoRaw) {
+            $idProducto = (int) $idProductoRaw;
+            $cantidad = max(0, (int) ($cantidades[$index] ?? 0));
+            $precio = round((float) ($precios[$index] ?? 0), 2);
+            if ($idProducto <= 0 || $cantidad <= 0 || $precio < 0) {
                 continue;
             }
-            $precioBase = round((float) mayorista_precio_producto($producto, $tipoVenta), 2);
-            if (abs($item['precio'] - $precioBase) > 0.009) {
-                $precioModificado = 1;
-            }
-            $totalNuevo += $item['cantidad'] * $item['precio'];
+
+            $nuevosItems[] = array(
+                'id_producto' => $idProducto,
+                'cantidad' => $cantidad,
+                'precio' => $precio,
+            );
         }
 
-        $totalNuevo = round($totalNuevo, 2);
-        if ($errorStock === '' && $totalNuevo < $abona) {
-            $errorStock = 'El nuevo total no puede ser menor al importe ya abonado.';
-        }
-
-        if ($errorStock !== '') {
-            $alert = '<div class="alert alert-danger">' . htmlspecialchars($errorStock) . '</div>';
+        if (empty($nuevosItems)) {
+            $alert = '<div class="alert alert-danger">La venta debe tener al menos un producto.</div>';
         } else {
-            $montoCcNuevo = round($totalNuevo - $abona, 2);
-            mysqli_begin_transaction($conexion);
+            $detalleActualQuery = mysqli_query($conexion, "SELECT * FROM detalle_venta WHERE id_venta = $idVenta");
+            $detalleActual = array();
+            $cantidadesAnteriores = array();
+            if ($detalleActualQuery) {
+                while ($row = mysqli_fetch_assoc($detalleActualQuery)) {
+                    $detalleActual[] = $row;
+                    $idProductoDetalle = (int) $row['id_producto'];
+                    $cantidadesAnteriores[$idProductoDetalle] = ($cantidadesAnteriores[$idProductoDetalle] ?? 0) + (int) $row['cantidad'];
+                }
+            }
 
-            try {
-                mysqli_query($conexion, "DELETE FROM detalle_venta WHERE id_venta = $idVenta");
+            $cantidadesNuevas = array();
+            $idsProductos = array();
+            foreach ($nuevosItems as $item) {
+                $cantidadesNuevas[$item['id_producto']] = ($cantidadesNuevas[$item['id_producto']] ?? 0) + $item['cantidad'];
+                $idsProductos[$item['id_producto']] = true;
+            }
+            foreach (array_keys($cantidadesAnteriores) as $idProductoAnterior) {
+                $idsProductos[$idProductoAnterior] = true;
+            }
+
+            $productosData = array();
+            if (!empty($idsProductos)) {
+                $idsSql = implode(',', array_map('intval', array_keys($idsProductos)));
+                $queryProductos = mysqli_query($conexion, "SELECT * FROM producto WHERE codproducto IN ($idsSql)");
+                while ($row = mysqli_fetch_assoc($queryProductos)) {
+                    $productosData[(int) $row['codproducto']] = $row;
+                }
+            }
+
+            $totalNuevo = 0;
+            $precioModificado = 0;
+            $stockFinal = array();
+            $errorStock = '';
+
+            foreach ($idsProductos as $idProducto => $_unused) {
+                if (!isset($productosData[$idProducto])) {
+                    $errorStock = 'Uno de los productos seleccionados ya no existe.';
+                    break;
+                }
+
+                $producto = $productosData[$idProducto];
+                $stockActual = (int) $producto['existencia'];
+                $stockDisponible = $stockActual + (int) ($cantidadesAnteriores[$idProducto] ?? 0);
+                $cantidadNueva = (int) ($cantidadesNuevas[$idProducto] ?? 0);
+                if ($cantidadNueva > $stockDisponible) {
+                    $errorStock = 'Stock insuficiente para ' . mayorista_nombre_producto($producto) . '. Disponible para edición: ' . $stockDisponible . '.';
+                    break;
+                }
+                $stockFinal[$idProducto] = $stockDisponible - $cantidadNueva;
+            }
+
                 foreach ($nuevosItems as $item) {
-                    $producto = $productosData[$item['id_producto']];
+                    $producto = $productosData[$item['id_producto']] ?? null;
+                    if (!$producto) {
+                        continue;
+                    }
                     $precioBase = round((float) mayorista_precio_producto($producto, $tipoVenta), 2);
-                    $precioPersonalizado = abs($item['precio'] - $precioBase) > 0.009 ? $item['precio'] : null;
-                    $camposDetalle = array('id_producto', 'id_venta', 'cantidad', 'precio', 'precio_original', 'abona', 'resto', 'obrasocial');
-                    $valoresDetalle = array($item['id_producto'], $idVenta, $item['cantidad'], $item['precio'], $precioBase, $abona, $montoCcNuevo, 0);
-                    if (mayorista_column_exists($conexion, 'detalle_venta', 'idcristal')) {
-                        $camposDetalle[] = 'idcristal';
-                        $valoresDetalle[] = 0;
+                    if (abs($item['precio'] - $precioBase) > 0.009) {
+                        $precioModificado = 1;
                     }
-                    if (mayorista_column_exists($conexion, 'detalle_venta', 'precio_personalizado')) {
-                        $camposDetalle[] = 'precio_personalizado';
-                        $valoresDetalle[] = $precioPersonalizado === null ? 'NULL' : $precioPersonalizado;
-                    }
-                    if (mayorista_column_exists($conexion, 'detalle_venta', 'tipo_precio')) {
-                        $camposDetalle[] = 'tipo_precio';
-                        $valoresDetalle[] = "'" . $tipoVenta . "'";
-                    }
-
-                    $valoresSql = array();
-                    foreach ($valoresDetalle as $valorDetalle) {
-                        $valoresSql[] = $valorDetalle === 'NULL' ? 'NULL' : $valorDetalle;
-                    }
-                    $insertDetalle = mysqli_query(
-                        $conexion,
-                        "INSERT INTO detalle_venta(" . implode(', ', $camposDetalle) . ")
-                         VALUES (" . implode(', ', $valoresSql) . ")"
-                    );
-                    if (!$insertDetalle) {
-                        throw new Exception('No se pudo actualizar el detalle de la venta.');
-                    }
+                    $totalNuevo += $item['cantidad'] * $item['precio'];
                 }
 
-                foreach ($stockFinal as $idProductoStock => $nuevoStock) {
-                    mysqli_query(
-                        $conexion,
-                        "UPDATE producto
-                         SET existencia = $nuevoStock,
-                             estado = IF($nuevoStock <= 0, 0, estado)
-                         WHERE codproducto = " . (int) $idProductoStock
-                    );
+                $totalNuevo = round($totalNuevo, 2);
+                if ($errorStock === '' && $totalNuevo < $abona) {
+                    $errorStock = 'El nuevo total no puede ser menor al importe ya abonado.';
                 }
 
-                mysqli_query($conexion, "DELETE FROM movimientos_cc WHERE id_venta = $idVenta AND tipo = 'cargo'");
-                $saldoCcCliente = 0;
-                if ($montoCcNuevo > 0) {
-                    $validacionCc = mayorista_validar_nuevo_cargo_cc($conexion, $idCliente, $montoCcNuevo);
-                    if (!$validacionCc['permitido']) {
-                        throw new Exception('La edición supera el límite de crédito del cliente.');
-                    }
-                    $saldoCcCliente = mayorista_registrar_movimiento_cc(
-                        $conexion,
-                        $idCliente,
-                        'cargo',
-                        $montoCcNuevo,
-                        'Venta editada #' . $idVenta,
-                        $id_user,
-                        $idVenta
-                    );
+                if ($errorStock !== '') {
+                    $alert = '<div class="alert alert-danger">' . htmlspecialchars($errorStock) . '</div>';
                 } else {
-                    $cuenta = mayorista_obtener_cuenta_corriente($conexion, $idCliente);
-                    $saldoCcCliente = (float) ($cuenta['saldo_actual'] ?? 0);
+                    $montoCcNuevo = round($totalNuevo - $abona, 2);
+                    mysqli_begin_transaction($conexion);
+
+                    try {
+                        mysqli_query($conexion, "DELETE FROM detalle_venta WHERE id_venta = $idVenta");
+                        foreach ($nuevosItems as $item) {
+                            $producto = $productosData[$item['id_producto']];
+                            $precioBase = round((float) mayorista_precio_producto($producto, $tipoVenta), 2);
+                            $precioPersonalizado = abs($item['precio'] - $precioBase) > 0.009 ? $item['precio'] : null;
+                            $camposDetalle = array('id_producto', 'id_venta', 'cantidad', 'precio', 'precio_original', 'abona', 'resto', 'obrasocial');
+                            $valoresDetalle = array($item['id_producto'], $idVenta, $item['cantidad'], $item['precio'], $precioBase, $abona, $montoCcNuevo, 0);
+                            if (mayorista_column_exists($conexion, 'detalle_venta', 'idcristal')) {
+                                $camposDetalle[] = 'idcristal';
+                                $valoresDetalle[] = 0;
+                            }
+                            if (mayorista_column_exists($conexion, 'detalle_venta', 'precio_personalizado')) {
+                                $camposDetalle[] = 'precio_personalizado';
+                                $valoresDetalle[] = $precioPersonalizado === null ? 'NULL' : $precioPersonalizado;
+                            }
+                            if (mayorista_column_exists($conexion, 'detalle_venta', 'tipo_precio')) {
+                                $camposDetalle[] = 'tipo_precio';
+                                $valoresDetalle[] = "'" . $tipoVenta . "'";
+                            }
+
+                            $valoresSql = array();
+                            foreach ($valoresDetalle as $valorDetalle) {
+                                $valoresSql[] = $valorDetalle === 'NULL' ? 'NULL' : $valorDetalle;
+                            }
+                            $insertDetalle = mysqli_query(
+                                $conexion,
+                                "INSERT INTO detalle_venta(" . implode(', ', $camposDetalle) . ")
+                                 VALUES (" . implode(', ', $valoresSql) . ")"
+                            );
+                            if (!$insertDetalle) {
+                                throw new Exception('No se pudo actualizar el detalle de la venta.');
+                            }
+                        }
+
+                        foreach ($stockFinal as $idProductoStock => $nuevoStock) {
+                            mysqli_query(
+                                $conexion,
+                                "UPDATE producto
+                                 SET existencia = $nuevoStock,
+                                     estado = IF($nuevoStock <= 0, 0, estado)
+                                 WHERE codproducto = " . (int) $idProductoStock
+                            );
+                        }
+
+                        mysqli_query($conexion, "DELETE FROM movimientos_cc WHERE id_venta = $idVenta AND tipo = 'cargo'");
+                        $saldoCcCliente = 0;
+                        if ($montoCcNuevo > 0) {
+                            $validacionCc = mayorista_validar_nuevo_cargo_cc($conexion, $idCliente, $montoCcNuevo);
+                            if (!$validacionCc['permitido']) {
+                                throw new Exception('La edición supera el límite de crédito del cliente.');
+                            }
+                            $saldoCcCliente = mayorista_registrar_movimiento_cc(
+                                $conexion,
+                                $idCliente,
+                                'cargo',
+                                $montoCcNuevo,
+                                'Venta editada #' . $idVenta,
+                                $id_user,
+                                $idVenta,
+                                $fechaVentaSql
+                            );
+                        } else {
+                            $cuenta = mayorista_obtener_cuenta_corriente($conexion, $idCliente);
+                            $saldoCcCliente = (float) ($cuenta['saldo_actual'] ?? 0);
+                        }
+
+                        mysqli_query(
+                            $conexion,
+                            "UPDATE ventas
+                             SET total = $totalNuevo,
+                                 resto = $montoCcNuevo,
+                                 monto_cc = $montoCcNuevo,
+                                 saldo_cc_cliente = $saldoCcCliente,
+                                 precio_modificado = $precioModificado,
+                                 fecha = '" . mysqli_real_escape_string($conexion, $fechaVentaSql) . "'
+                             WHERE id = $idVenta"
+                        );
+
+                        if (mayorista_table_exists($conexion, 'ingresos')) {
+                            mysqli_query(
+                                $conexion,
+                                "UPDATE ingresos
+                                 SET fecha = '" . mysqli_real_escape_string($conexion, $fechaVentaSql) . "'
+                                 WHERE id_venta = $idVenta"
+                            );
+                        }
+
+                        if (mayorista_table_exists($conexion, 'postpagos')) {
+                            mysqli_query(
+                                $conexion,
+                                "UPDATE postpagos
+                                 SET abona = $abona,
+                                     resto = $montoCcNuevo,
+                                     precio = $totalNuevo,
+                                     precio_original = $totalNuevo
+                                 WHERE id_venta = $idVenta"
+                            );
+                        }
+
+                        mysqli_commit($conexion);
+                        $alert = '<div class="alert alert-success">Venta actualizada correctamente.</div>';
+
+                        $ventaQuery = mysqli_query(
+                            $conexion,
+                            "SELECT v.*, c.nombre AS cliente_nombre
+                             FROM ventas v
+                             LEFT JOIN cliente c ON v.id_cliente = c.idcliente
+                             WHERE v.id = $idVenta
+                             LIMIT 1"
+                        );
+                        $venta = $ventaQuery ? mysqli_fetch_assoc($ventaQuery) : $venta;
+                        $fechaVentaActual = !empty($venta['fecha']) ? date('Y-m-d', strtotime($venta['fecha'])) : $fechaVentaInput;
+                    } catch (Exception $e) {
+                        mysqli_rollback($conexion);
+                        $alert = '<div class="alert alert-danger">' . htmlspecialchars($e->getMessage()) . '</div>';
+                    }
                 }
-
-                mysqli_query(
-                    $conexion,
-                    "UPDATE ventas
-                     SET total = $totalNuevo,
-                         resto = $montoCcNuevo,
-                         monto_cc = $montoCcNuevo,
-                         saldo_cc_cliente = $saldoCcCliente,
-                         precio_modificado = $precioModificado
-                     WHERE id = $idVenta"
-                );
-
-                if (mayorista_table_exists($conexion, 'postpagos')) {
-                    mysqli_query(
-                        $conexion,
-                        "UPDATE postpagos
-                         SET abona = $abona,
-                             resto = $montoCcNuevo,
-                             precio = $totalNuevo,
-                             precio_original = $totalNuevo
-                         WHERE id_venta = $idVenta"
-                    );
-                }
-
-                mysqli_commit($conexion);
-                $alert = '<div class="alert alert-success">Venta actualizada correctamente.</div>';
-
-                $ventaQuery = mysqli_query(
-                    $conexion,
-                    "SELECT v.*, c.nombre AS cliente_nombre
-                     FROM ventas v
-                     LEFT JOIN cliente c ON v.id_cliente = c.idcliente
-                     WHERE v.id = $idVenta
-                     LIMIT 1"
-                );
-                $venta = $ventaQuery ? mysqli_fetch_assoc($ventaQuery) : $venta;
-            } catch (Exception $e) {
-                mysqli_rollback($conexion);
-                $alert = '<div class="alert alert-danger">' . htmlspecialchars($e->getMessage()) . '</div>';
             }
         }
     }
-}
+$fechaVentaActual = !empty($venta['fecha']) ? date('Y-m-d', strtotime($venta['fecha'])) : $fechaVentaActual;
 
 $detalleVenta = mysqli_query(
     $conexion,
@@ -279,6 +302,20 @@ include_once "includes/header.php";
 
                 <form method="post" id="formEditarVenta">
                     <input type="hidden" name="id_venta" value="<?php echo (int) $venta['id']; ?>">
+                    <div class="form-row mb-3">
+                        <div class="form-group col-md-4">
+                            <label for="fecha_venta">Fecha de la nota</label>
+                            <input
+                                type="date"
+                                id="fecha_venta"
+                                name="fecha_venta"
+                                class="form-control"
+                                value="<?php echo htmlspecialchars($fechaVentaActual); ?>"
+                                max="<?php echo date('Y-m-d'); ?>"
+                                required>
+                            <small class="form-text text-muted">Solo se puede editar mientras la venta no tenga factura aprobada en AFIP.</small>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-bordered" id="tablaDetalleEditable">
                             <thead>
