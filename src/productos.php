@@ -288,6 +288,97 @@ $columnaMaterial = $hasTipoMaterial ? $columnaActual++ : null;
 $columnaTipo = $hasTipo ? $columnaActual++ : null;
 include_once "includes/header.php";
 ?>
+<style>
+.productos-tabla-shell {
+    position: relative;
+    min-height: 420px;
+}
+
+.productos-tabla-shell .table-responsive {
+    overflow-x: visible;
+    padding: 0.3rem 0.6rem 0.45rem;
+    border-radius: 18px;
+}
+
+#tbl {
+    width: 100% !important;
+    margin: 0 auto;
+    font-size: 0.92rem;
+}
+
+.productos-tabla-shell .dataTables_wrapper {
+    width: 100%;
+    margin: 0 auto;
+    font-size: 0.92rem;
+}
+
+#tbl thead th,
+#tbl tbody td {
+    padding: 0.55rem 0.4rem;
+}
+
+.productos-tabla-shell .dataTables_wrapper .dataTables_length,
+.productos-tabla-shell .dataTables_wrapper .dataTables_filter,
+.productos-tabla-shell .dataTables_wrapper .dataTables_info,
+.productos-tabla-shell .dataTables_wrapper .dataTables_paginate {
+    font-size: 0.88rem;
+}
+
+.productos-tabla-shell .dataTables_wrapper .dataTables_filter input,
+.productos-tabla-shell .dataTables_wrapper .dataTables_length select {
+    font-size: 0.88rem;
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+}
+
+.productos-tabla-shell.is-pending .table-responsive,
+.productos-tabla-shell.is-pending .dataTables_wrapper {
+    opacity: 0;
+}
+
+.productos-tabla-shell.is-pending::after {
+    content: "Cargando catalogo...";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.72);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background: rgba(9, 11, 18, 0.28);
+    border-radius: 18px;
+    pointer-events: none;
+}
+
+#tbl th:last-child,
+#tbl td.productos-acciones {
+    white-space: nowrap;
+    min-width: 0;
+    width: auto;
+}
+
+#tbl td.productos-acciones .btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#tbl td.productos-acciones {
+    padding-right: 1rem;
+}
+
+#tbl td.productos-acciones .productos-acciones-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+</style>
 <div class="productos-container">
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap">
         <div>
@@ -458,6 +549,7 @@ include_once "includes/header.php";
                     </div>
                 </div>
             </div>
+            <div class="productos-tabla-shell is-pending" id="js-productos-tabla-shell">
             <div class="table-responsive">
                 <table class="table table-hover custom-dt-init" id="tbl">
                     <thead class="thead-dark">
@@ -500,36 +592,39 @@ include_once "includes/header.php";
                                 <?php if ($hasPrecioBruto) { ?><td><?php echo number_format((float) $data['precio_bruto'], 2, ',', '.'); ?></td><?php } ?>
                                 <td class="<?php echo $stockClass; ?>"><?php echo (int) $data['existencia']; ?></td>
                                 <td><?php echo $estado; ?></td>
-                                <td>
-                                    <a href="agregar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-primary" title="Stock">
-                                        <i class="fas fa-layer-group"></i>
-                                    </a>
-                                    <a href="editar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-success" title="Editar">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-danger js-eliminar-producto"
-                                        title="Eliminar"
-                                        data-id="<?php echo (int) $data['codproducto']; ?>"
-                                        data-producto="<?php echo htmlspecialchars(mayorista_nombre_producto($data), ENT_QUOTES, 'UTF-8'); ?>">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                    <?php if ((int) $data['estado'] === 1) { ?>
-                                        <a href="inactivar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-warning confirmar-inactivar" title="Inactivar">
-                                            <i class="fas fa-ban"></i>
+                                <td class="productos-acciones">
+                                    <div class="productos-acciones-wrap">
+                                        <a href="agregar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-primary" title="Stock">
+                                            <i class="fas fa-layer-group"></i>
                                         </a>
-                                    <?php } else { ?>
-                                        <a href="activar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-info" title="Activar">
-                                            <i class="fas fa-check"></i>
+                                        <a href="editar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-success" title="Editar">
+                                            <i class="fas fa-edit"></i>
                                         </a>
-                                    <?php } ?>
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-danger js-eliminar-producto"
+                                            title="Eliminar"
+                                            data-id="<?php echo (int) $data['codproducto']; ?>"
+                                            data-producto="<?php echo htmlspecialchars(mayorista_nombre_producto($data), ENT_QUOTES, 'UTF-8'); ?>">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        <?php if ((int) $data['estado'] === 1) { ?>
+                                            <a href="inactivar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-warning confirmar-inactivar" title="Inactivar">
+                                                <i class="fas fa-ban"></i>
+                                            </a>
+                                        <?php } else { ?>
+                                            <a href="activar_producto.php?id=<?php echo $data['codproducto']; ?>" class="btn btn-sm btn-info" title="Activar">
+                                                <i class="fas fa-check"></i>
+                                            </a>
+                                        <?php } ?>
+                                    </div>
                                 </td>
                             </tr>
                         <?php }
                         } ?>
                     </tbody>
                 </table>
+            </div>
             </div>
         </div>
     </div>
@@ -764,9 +859,18 @@ include_once "includes/header.php";
 </div>
 
 <script>
-window.addEventListener('load', function () {
+document.addEventListener('DOMContentLoaded', function () {
     const $ = window.jQuery;
+    const tablaShell = document.getElementById('js-productos-tabla-shell');
+
+    function marcarTablaLista() {
+        if (tablaShell) {
+            tablaShell.classList.remove('is-pending');
+        }
+    }
+
     if (!$) {
+        marcarTablaLista();
         return;
     }
 
@@ -893,9 +997,13 @@ window.addEventListener('load', function () {
     if ($.fn.DataTable && $table.length && !$.fn.DataTable.isDataTable($table)) {
         const tableApi = $table.DataTable({
             order: [[0, 'desc']],
+            autoWidth: false,
             columnDefs: [
                 { targets: -1, orderable: false }
-            ]
+            ],
+            initComplete: function () {
+                marcarTablaLista();
+            }
         });
         vincularFiltrosDataTable(tableApi);
         return;
@@ -906,6 +1014,7 @@ window.addEventListener('load', function () {
         $filtros.val('');
         aplicarFiltrosFallback();
     });
+    marcarTablaLista();
 });
 </script>
 

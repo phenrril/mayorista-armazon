@@ -187,6 +187,39 @@ if (!empty($_POST)) {
 }
 ?>
 <style>
+.clientes-container #tbl {
+    width: 100% !important;
+    margin: 0 auto;
+    font-size: 0.92rem;
+}
+
+.clientes-container .table-responsive {
+    overflow-x: visible;
+}
+
+.clientes-container #tbl thead th,
+.clientes-container #tbl tbody td {
+    padding: 0.55rem 0.4rem;
+}
+
+.clientes-container .dataTables_wrapper {
+    font-size: 0.92rem;
+}
+
+.clientes-container .dataTables_wrapper .dataTables_length,
+.clientes-container .dataTables_wrapper .dataTables_filter,
+.clientes-container .dataTables_wrapper .dataTables_info,
+.clientes-container .dataTables_wrapper .dataTables_paginate {
+    font-size: 0.88rem;
+}
+
+.clientes-container .dataTables_wrapper .dataTables_filter input,
+.clientes-container .dataTables_wrapper .dataTables_length select {
+    font-size: 0.88rem;
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+}
+
 .acciones-cliente-col {
     white-space: nowrap;
     min-width: 150px;
@@ -629,7 +662,9 @@ if (!empty($_POST)) {
 <script>
 $(function () {
     if ($('#tbl').length && !$('#tbl').hasClass('custom-dt-init')) {
-        $('#tbl').DataTable();
+        $('#tbl').DataTable({
+            autoWidth: false
+        });
     }
 
     $('.btn-editar-cliente').on('click', function () {
