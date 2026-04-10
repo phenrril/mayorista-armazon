@@ -174,7 +174,17 @@ function listar() {
                                 <button class="btn btn-sm btn-outline-secondary" type="button" onclick="ajustarCantidadDetalle(${row.id}, -1)" aria-label="Restar una unidad">
                                     <i class="fas fa-minus"></i>
                                 </button>
-                                <span class="badge badge-secondary mx-2 px-3 py-2 detalle-cantidad-label">${row.cantidad}</span>
+                                <input
+                                    type="number"
+                                    class="cantidad-editable-input detalle-cantidad-input mx-2"
+                                    value="${parseInt(row.cantidad, 10) || 1}"
+                                    min="1"
+                                    step="1"
+                                    inputmode="numeric"
+                                    onchange="actualizarCantidadDetalle(${row.id}, this.value, this)"
+                                    onkeydown="if (event.key === 'Enter') { event.preventDefault(); this.blur(); }"
+                                    aria-label="Cantidad"
+                                >
                                 <button class="btn btn-sm btn-outline-secondary" type="button" onclick="ajustarCantidadDetalle(${row.id}, 1)" aria-label="Sumar una unidad">
                                     <i class="fas fa-plus"></i>
                                 </button>
@@ -270,7 +280,7 @@ function actualizarPrecio(id, nuevoPrecio, inputEl) {
         success: function (response) {
             if (response === 'ok') {
                 const fila = $(inputEl).closest('tr');
-                const cantidad = parseFloat(fila.find('.detalle-cantidad-label').text()) || 1;
+                const cantidad = parseFloat(fila.find('.detalle-cantidad-input').val()) || 1;
                 const subtotal = precio * cantidad;
                 fila.find('.subtotal-item').data('subtotal', subtotal).text(formatCurrency(subtotal));
                 calcularVenta();
@@ -336,6 +346,77 @@ function ajustarCantidadDetalle(id, delta) {
                 title: 'No se pudo actualizar la cantidad',
                 timer: 2200
             });
+        }
+    });
+}
+
+function actualizarCantidadDetalle(id, nuevaCantidad, inputEl) {
+    const cantidad = parseInt(nuevaCantidad, 10);
+    if (isNaN(cantidad) || cantidad <= 0) {
+        showCenteredAlert({
+            icon: 'warning',
+            title: 'Cantidad inválida',
+            timer: 2000
+        });
+        listar();
+        return;
+    }
+
+    $.ajax({
+        url: 'ajax.php',
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            update_cantidad: true,
+            id: id,
+            cantidad: cantidad
+        },
+        success: function (response) {
+            const normalized = String(response).replace(/"/g, '');
+            if (normalized === 'ok') {
+                const fila = $(inputEl).closest('tr');
+                const precio = parseFloat(fila.find('.precio-editable-input').val()) || 0;
+                const subtotal = precio * cantidad;
+                fila.find('.subtotal-item').data('subtotal', subtotal).text(formatCurrency(subtotal));
+                calcularVenta();
+                listar();
+                return;
+            }
+
+            if (normalized === 'stock_insuficiente') {
+                showCenteredAlert({
+                    icon: 'warning',
+                    title: 'Stock insuficiente',
+                    timer: 2200
+                });
+                listar();
+                return;
+            }
+
+            if (normalized === 'cantidad_invalida') {
+                showCenteredAlert({
+                    icon: 'warning',
+                    title: 'Cantidad inválida',
+                    timer: 2000
+                });
+                listar();
+                return;
+            }
+
+            showCenteredAlert({
+                icon: 'error',
+                title: 'No se pudo actualizar la cantidad',
+                timer: 2200
+            });
+            listar();
+        },
+        error: function () {
+            showCenteredAlert({
+                icon: 'error',
+                title: 'No se pudo actualizar la cantidad',
+                timer: 2200
+            });
+            listar();
         }
     });
 }

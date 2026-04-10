@@ -735,6 +735,14 @@ select optgroup {
   background: #ffffff !important;
 }
 
+.cantidad-editable-input {
+  width: 72px;
+  text-align: center;
+  color: #111827 !important;
+  border: 1px solid rgba(17, 24, 39, 0.18) !important;
+  background: #ffffff !important;
+}
+
 .cliente-autocomplete-menu.ui-autocomplete {
   max-height: 280px;
   overflow-y: auto;
