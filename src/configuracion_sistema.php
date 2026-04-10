@@ -28,11 +28,15 @@ $migracion_finanzas_pendiente = !mayorista_schema_finanzas_operativas_listo($con
 $migracion_finanzas_token = $migracion_finanzas_pendiente ? mayorista_generar_token_migracion_finanzas() : '';
 $migracion_vencimientos_venta_pendiente = !mayorista_schema_vencimientos_venta_listo($conexion);
 $migracion_vencimientos_venta_token = $migracion_vencimientos_venta_pendiente ? mayorista_generar_token_migracion_vencimientos_venta() : '';
+$migracion_descuentos_venta_pendiente = !mayorista_schema_descuentos_venta_listo($conexion);
+$migracion_descuentos_venta_token = $migracion_descuentos_venta_pendiente ? mayorista_generar_token_migracion_descuentos_venta() : '';
+$cc_schema_listo = mayorista_table_exists($conexion, 'cuenta_corriente') && mayorista_table_exists($conexion, 'movimientos_cc');
+$migracion_movimientos_cc_pendiente = $cc_schema_listo && !mayorista_schema_movimientos_cc_metodos_listo($conexion);
+$migracion_movimientos_cc_token = $migracion_movimientos_cc_pendiente ? mayorista_generar_token_migracion_movimientos_cc() : '';
 $importacion_productos_pendiente = !mayorista_importacion_productos_fue_ejecutada($conexion);
 $importacion_productos_token = $importacion_productos_pendiente ? mayorista_generar_token_importacion_productos() : '';
 $importacion_clientes_pendiente = !mayorista_importacion_clientes_fue_ejecutada($conexion);
 $importacion_clientes_token = $importacion_clientes_pendiente ? mayorista_generar_token_importacion_clientes() : '';
-$cc_schema_listo = mayorista_table_exists($conexion, 'cuenta_corriente') && mayorista_table_exists($conexion, 'movimientos_cc');
 $reset_cc_masivo_pendiente = $cc_schema_listo && !mayorista_reset_cc_masivo_fue_ejecutado($conexion);
 $reset_cc_masivo_token = $reset_cc_masivo_pendiente ? mayorista_generar_token_reset_cc_masivo() : '';
 ?>
@@ -122,6 +126,60 @@ $reset_cc_masivo_token = $reset_cc_masivo_pendiente ? mayorista_generar_token_re
                     </button>
                     <small class="text-muted d-block mt-3">
                         El botón se ocultará automáticamente cuando la tabla quede creada correctamente.
+                    </small>
+                </div>
+            </div>
+            <?php } ?>
+
+            <?php if ($migracion_descuentos_venta_pendiente) { ?>
+            <div class="card card-modern mb-4" id="cardMigracionDescuentosVenta">
+                <div class="card-header-modern card-header-modern-warning">
+                    <i class="fas fa-percent mr-2"></i> Migración Descuentos en Ventas
+                </div>
+                <div class="card-body card-body-modern">
+                    <p class="mb-3">
+                        <i class="fas fa-info-circle text-info mr-2"></i>
+                        Ejecutá una sola vez esta migración para guardar el porcentaje de descuento en ventas y en la edición de notas de pedido.
+                    </p>
+                    <div id="resultado-migracion-descuentos-venta" class="mb-3"></div>
+                    <button
+                        type="button"
+                        class="btn btn-modern btn-modern-warning"
+                        id="btnMigracionDescuentosVenta"
+                        data-endpoint="ejecutar_migracion_descuentos_venta.php"
+                        data-token="<?php echo htmlspecialchars($migracion_descuentos_venta_token, ENT_QUOTES, 'UTF-8'); ?>"
+                    >
+                        <i class="fas fa-play mr-2"></i> Ejecutar migración única
+                    </button>
+                    <small class="text-muted d-block mt-3">
+                        El botón se ocultará automáticamente cuando la columna de descuento quede creada correctamente.
+                    </small>
+                </div>
+            </div>
+            <?php } ?>
+
+            <?php if ($migracion_movimientos_cc_pendiente) { ?>
+            <div class="card card-modern mb-4" id="cardMigracionMovimientosCc">
+                <div class="card-header-modern card-header-modern-warning">
+                    <i class="fas fa-wallet mr-2"></i> Migración Métodos en Cuenta Corriente
+                </div>
+                <div class="card-body card-body-modern">
+                    <p class="mb-3">
+                        <i class="fas fa-info-circle text-info mr-2"></i>
+                        Ejecutá una sola vez esta migración para guardar el modo de pago en los movimientos de cuenta corriente y poder editarlos con impacto en ventas, ingresos y cheques.
+                    </p>
+                    <div id="resultado-migracion-movimientos-cc" class="mb-3"></div>
+                    <button
+                        type="button"
+                        class="btn btn-modern btn-modern-warning"
+                        id="btnMigracionMovimientosCc"
+                        data-endpoint="ejecutar_migracion_movimientos_cc.php"
+                        data-token="<?php echo htmlspecialchars($migracion_movimientos_cc_token, ENT_QUOTES, 'UTF-8'); ?>"
+                    >
+                        <i class="fas fa-play mr-2"></i> Ejecutar migración única
+                    </button>
+                    <small class="text-muted d-block mt-3">
+                        El botón se ocultará automáticamente cuando la estructura nueva quede aplicada correctamente.
                     </small>
                 </div>
             </div>
@@ -345,6 +403,8 @@ window.addEventListener('load', function() {
     initMigracionRemito();
     initMigracionFinanzas();
     initMigracionVencimientosVenta();
+    initMigracionDescuentosVenta();
+    initMigracionMovimientosCc();
     initImportacionProductos();
     initImportacionClientes();
     initResetCuentasCorrientes();
@@ -883,6 +943,192 @@ function ejecutarMigracionVencimientosVenta($button) {
                 ? xhr.responseJSON.message
                 : 'Error al ejecutar la migración de vencimientos internos.';
             $('#resultado-migracion-vencimientos-venta').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            $button.prop('disabled', false).html(htmlOriginal);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
+}
+
+function initMigracionDescuentosVenta() {
+    const $button = $('#btnMigracionDescuentosVenta');
+    if ($button.length === 0) {
+        return;
+    }
+
+    $button.on('click', function() {
+        Swal.fire({
+            title: '¿Ejecutar migración de descuentos?',
+            html: `
+                <div class="text-left">
+                    <p>Esto habilitará:</p>
+                    <ul>
+                        <li>Porcentaje de descuento por venta</li>
+                        <li>Descuento global en nota de pedido</li>
+                        <li>Edición posterior del descuento</li>
+                    </ul>
+                    <p class="mb-0 text-warning"><strong>La acción es de un solo uso desde esta UI.</strong></p>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-play mr-2"></i>Ejecutar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#c48b2f',
+            cancelButtonColor: '#6c757d',
+            allowOutsideClick: false
+        }).then((result) => {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            ejecutarMigracionDescuentosVenta($button);
+        });
+    });
+}
+
+function ejecutarMigracionDescuentosVenta($button) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const htmlOriginal = '<i class="fas fa-play mr-2"></i> Ejecutar migración única';
+
+    $button.prop('disabled', true);
+    $button.html('<i class="fas fa-spinner fa-spin mr-2"></i> Ejecutando...');
+    $('#resultado-migracion-descuentos-venta').html('');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            csrf_token: token
+        },
+        success: function(response) {
+            if (!response || !response.success) {
+                const message = response && response.message ? response.message : 'No se pudo ejecutar la migración de descuentos.';
+                $('#resultado-migracion-descuentos-venta').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                $button.prop('disabled', false).html(htmlOriginal);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Migración no completada',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            $('#resultado-migracion-descuentos-venta').html('<div class="alert alert-success" role="alert">' + response.message + '</div>');
+            $('#cardMigracionDescuentosVenta').slideUp(250);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Migración aplicada',
+                text: response.message,
+                confirmButtonColor: '#198754'
+            });
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Error al ejecutar la migración de descuentos.';
+            $('#resultado-migracion-descuentos-venta').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            $button.prop('disabled', false).html(htmlOriginal);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
+}
+
+function initMigracionMovimientosCc() {
+    const $button = $('#btnMigracionMovimientosCc');
+    if ($button.length === 0) {
+        return;
+    }
+
+    $button.on('click', function() {
+        Swal.fire({
+            title: '¿Ejecutar migración de cuenta corriente?',
+            html: `
+                <div class="text-left">
+                    <p>Esto habilitará:</p>
+                    <ul>
+                        <li>Modo de pago por movimiento</li>
+                        <li>Referencias internas para sincronizar ventas, ingresos y cheques</li>
+                        <li>Edición posterior del monto y del modo de pago</li>
+                    </ul>
+                    <p class="mb-0 text-warning"><strong>La acción es de un solo uso desde esta UI.</strong></p>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-play mr-2"></i>Ejecutar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#c48b2f',
+            cancelButtonColor: '#6c757d',
+            allowOutsideClick: false
+        }).then((result) => {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            ejecutarMigracionMovimientosCc($button);
+        });
+    });
+}
+
+function ejecutarMigracionMovimientosCc($button) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const htmlOriginal = '<i class="fas fa-play mr-2"></i> Ejecutar migración única';
+
+    $button.prop('disabled', true);
+    $button.html('<i class="fas fa-spinner fa-spin mr-2"></i> Ejecutando...');
+    $('#resultado-migracion-movimientos-cc').html('');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            csrf_token: token
+        },
+        success: function(response) {
+            if (!response || !response.success) {
+                const message = response && response.message ? response.message : 'No se pudo ejecutar la migración de cuenta corriente.';
+                $('#resultado-migracion-movimientos-cc').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                $button.prop('disabled', false).html(htmlOriginal);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Migración no completada',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            $('#resultado-migracion-movimientos-cc').html('<div class="alert alert-success" role="alert">' + response.message + '</div>');
+            $('#cardMigracionMovimientosCc').slideUp(250);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Migración aplicada',
+                text: response.message,
+                confirmButtonColor: '#198754'
+            });
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Error al ejecutar la migración de cuenta corriente.';
+            $('#resultado-migracion-movimientos-cc').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
             $button.prop('disabled', false).html(htmlOriginal);
             Swal.fire({
                 icon: 'error',

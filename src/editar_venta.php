@@ -39,6 +39,7 @@ if (mayorista_venta_tiene_factura_aprobada($conexion, $idVenta)) {
 $tipoVenta = mayorista_tipo_venta_valido($venta['tipo_venta'] ?? 'minorista');
 $hasMayorista = mayorista_column_exists($conexion, 'producto', 'precio_mayorista');
 $hasVencimientosVenta = mayorista_schema_vencimientos_venta_listo($conexion);
+$hasDescuentoVenta = mayorista_schema_descuentos_venta_listo($conexion);
 $alert = '';
 $fechaVentaActual = !empty($venta['fecha']) ? date('Y-m-d', strtotime($venta['fecha'])) : date('Y-m-d');
 $horaVentaActual = !empty($venta['fecha']) ? date('H:i', strtotime($venta['fecha'])) : date('H:i');
@@ -49,7 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $precios = $_POST['precio'] ?? array();
     $fechaVentaInput = trim((string) ($_POST['fecha_venta'] ?? $fechaVentaActual));
     $horaVentaInput = trim((string) ($_POST['hora_venta'] ?? $horaVentaActual));
-    $abona = round((float) ($venta['abona'] ?? 0), 2);
+    $abonaInput = trim((string) ($_POST['abona'] ?? ''));
+    $descuentoPorcentajeInput = trim((string) ($_POST['descuento_porcentaje'] ?? '0'));
+    $abona = $abonaInput === '' ? 0 : round((float) $abonaInput, 2);
+    $descuentoPorcentaje = $descuentoPorcentajeInput === '' ? 0 : round((float) $descuentoPorcentajeInput, 2);
     $metodoPago = (int) ($venta['id_metodo'] ?? 1);
     $idCliente = (int) ($venta['id_cliente'] ?? 0);
     $vencimientoIds = $_POST['vencimiento_id'] ?? array();
@@ -90,7 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (!mayorista_fecha_iso_valida($fechaVentaInput)) {
+    if ($abona < 0) {
+        $alert = '<div class="alert alert-danger">El importe abonado no puede ser negativo.</div>';
+    } elseif ($descuentoPorcentaje < 0 || $descuentoPorcentaje > 100) {
+        $alert = '<div class="alert alert-danger">El descuento debe estar entre 0 y 100.</div>';
+    } elseif ($descuentoPorcentaje > 0 && !$hasDescuentoVenta) {
+        $alert = '<div class="alert alert-danger">Primero aplicá la migración de descuentos desde configuración.</div>';
+    } elseif (!mayorista_fecha_iso_valida($fechaVentaInput)) {
         $alert = '<div class="alert alert-danger">La fecha de la nota no es válida.</div>';
     } elseif (!preg_match('/^\d{2}:\d{2}$/', $horaVentaInput)) {
         $alert = '<div class="alert alert-danger">La hora de la nota no es válida.</div>';
@@ -146,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $totalNuevo = 0;
+            $subtotalBrutoNuevo = 0;
             $precioModificado = 0;
             $stockFinal = array();
             $errorStock = '';
@@ -177,10 +187,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (abs($item['precio'] - $precioBase) > 0.009) {
                         $precioModificado = 1;
                     }
-                    $totalNuevo += $item['cantidad'] * $item['precio'];
+                    $subtotalBrutoNuevo += $item['cantidad'] * $item['precio'];
                 }
 
-                $totalNuevo = round($totalNuevo, 2);
+                $subtotalBrutoNuevo = round($subtotalBrutoNuevo, 2);
+                $descuentoImporteNuevo = round($subtotalBrutoNuevo * ($descuentoPorcentaje / 100), 2);
+                $totalNuevo = round($subtotalBrutoNuevo - $descuentoImporteNuevo, 2);
                 if ($errorStock === '' && $totalNuevo < $abona) {
                     $errorStock = 'El nuevo total no puede ser menor al importe ya abonado.';
                 }
@@ -251,32 +263,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'Venta editada #' . $idVenta,
                                 $id_user,
                                 $idVenta,
-                                $fechaVentaSql
+                                $fechaVentaSql,
+                                $metodoPago,
+                                'venta',
+                                $idVenta
                             );
                         } else {
                             $cuenta = mayorista_obtener_cuenta_corriente($conexion, $idCliente);
                             $saldoCcCliente = (float) ($cuenta['saldo_actual'] ?? 0);
                         }
 
+                        $updatesVenta = array(
+                            "total = $totalNuevo",
+                            "abona = $abona",
+                            "resto = $montoCcNuevo",
+                            "monto_cc = $montoCcNuevo",
+                            "saldo_cc_cliente = $saldoCcCliente",
+                            "precio_modificado = $precioModificado",
+                            "fecha = '" . mysqli_real_escape_string($conexion, $fechaVentaSql) . "'",
+                        );
+                        if ($hasDescuentoVenta) {
+                            $updatesVenta[] = "descuento_porcentaje = $descuentoPorcentaje";
+                        }
                         mysqli_query(
                             $conexion,
                             "UPDATE ventas
-                             SET total = $totalNuevo,
-                                 resto = $montoCcNuevo,
-                                 monto_cc = $montoCcNuevo,
-                                 saldo_cc_cliente = $saldoCcCliente,
-                                 precio_modificado = $precioModificado,
-                                 fecha = '" . mysqli_real_escape_string($conexion, $fechaVentaSql) . "'
+                             SET " . implode(",\n                                 ", $updatesVenta) . "
                              WHERE id = $idVenta"
                         );
 
-                        if (mayorista_table_exists($conexion, 'ingresos')) {
-                            mysqli_query(
-                                $conexion,
-                                "UPDATE ingresos
-                                 SET fecha = '" . mysqli_real_escape_string($conexion, $fechaVentaSql) . "'
-                                 WHERE id_venta = $idVenta"
-                            );
+                        if (mayorista_table_exists($conexion, 'ingresos') && $metodoPago !== 5) {
+                            if ($abona > 0) {
+                                $ingresoExistenteQuery = mysqli_query(
+                                    $conexion,
+                                    "SELECT id
+                                     FROM ingresos
+                                     WHERE id_venta = $idVenta
+                                     ORDER BY id ASC
+                                     LIMIT 1"
+                                );
+                                $ingresoExistente = $ingresoExistenteQuery ? mysqli_fetch_assoc($ingresoExistenteQuery) : null;
+
+                                if ($ingresoExistente) {
+                                    mysqli_query(
+                                        $conexion,
+                                        "UPDATE ingresos
+                                         SET ingresos = $abona,
+                                             fecha = '" . mysqli_real_escape_string($conexion, $fechaVentaSql) . "',
+                                             id_cliente = $idCliente,
+                                             id_metodo = $metodoPago
+                                         WHERE id = " . (int) $ingresoExistente['id']
+                                    );
+                                } else {
+                                    mysqli_query(
+                                        $conexion,
+                                        "INSERT INTO ingresos(ingresos, fecha, id_venta, id_cliente, id_metodo, descripcion)
+                                         VALUES ($abona, '" . mysqli_real_escape_string($conexion, $fechaVentaSql) . "', '$idVenta', $idCliente, $metodoPago, 'Ingreso inicial editado venta #$idVenta')"
+                                    );
+                                }
+                            } else {
+                                mysqli_query($conexion, "DELETE FROM ingresos WHERE id_venta = $idVenta");
+                            }
+                        }
+
+                        if (mayorista_table_exists($conexion, 'compromisos_financieros') && $metodoPago === 5) {
+                            if ($abona > 0) {
+                                $descripcionCheque = 'Cheque recibido venta #' . $idVenta;
+                                $chequeExistenteQuery = mysqli_query(
+                                    $conexion,
+                                    "SELECT id
+                                     FROM compromisos_financieros
+                                     WHERE id_venta = $idVenta
+                                     AND tipo = 'cheque_recibido'
+                                     AND estado = 'pendiente_confirmacion'
+                                     ORDER BY id ASC
+                                     LIMIT 1"
+                                );
+                                $chequeExistente = $chequeExistenteQuery ? mysqli_fetch_assoc($chequeExistenteQuery) : null;
+
+                                if ($chequeExistente) {
+                                    mysqli_query(
+                                        $conexion,
+                                        "UPDATE compromisos_financieros
+                                         SET monto_total = $abona,
+                                             saldo_pendiente = $abona,
+                                             fecha_compromiso = '" . mysqli_real_escape_string($conexion, $fechaVentaInput) . "',
+                                             descripcion = '" . mysqli_real_escape_string($conexion, $descripcionCheque) . "',
+                                             updated_at = NOW()
+                                         WHERE id = " . (int) $chequeExistente['id']
+                                    );
+                                }
+                            } else {
+                                mysqli_query(
+                                    $conexion,
+                                    "DELETE FROM compromisos_financieros
+                                     WHERE id_venta = $idVenta
+                                     AND tipo = 'cheque_recibido'
+                                     AND estado = 'pendiente_confirmacion'"
+                                );
+                            }
                         }
 
                         if (mayorista_table_exists($conexion, 'postpagos')) {
@@ -317,6 +402,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+
+$abonaVisible = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $abonaVisible = trim((string) ($_POST['abona'] ?? ''));
+} elseif ((float) ($venta['abona'] ?? 0) > 0.009) {
+    $abonaVisible = number_format((float) $venta['abona'], 2, '.', '');
+}
+
+$descuentoPorcentajeActual = $hasDescuentoVenta ? round((float) ($venta['descuento_porcentaje'] ?? 0), 2) : 0;
+$descuentoVisible = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? trim((string) ($_POST['descuento_porcentaje'] ?? '0'))
+    : number_format($descuentoPorcentajeActual, 2, '.', '');
+
+$montoCcActual = round(isset($venta['monto_cc']) ? (float) $venta['monto_cc'] : (float) ($venta['resto'] ?? 0), 2);
+$montoCcVisible = $montoCcActual > 0.009 ? number_format($montoCcActual, 2, '.', '') : '';
+
 $fechaVentaActual = !empty($venta['fecha']) ? date('Y-m-d', strtotime($venta['fecha'])) : $fechaVentaActual;
 $horaVentaActual = !empty($venta['fecha']) ? date('H:i', strtotime($venta['fecha'])) : $horaVentaActual;
 
@@ -340,10 +441,13 @@ include_once "includes/header.php";
             </div>
             <div class="card-body">
                 <?php echo $alert; ?>
+                <?php if (!$hasDescuentoVenta) { ?>
+                    <div class="alert alert-warning">Ejecutá la migración de descuentos desde configuración para poder guardar descuentos porcentuales.</div>
+                <?php } ?>
                 <div class="row mb-4">
                     <div class="col-md-3"><strong>Cliente:</strong><br><?php echo htmlspecialchars($venta['cliente_nombre'] ?: 'Consumidor final'); ?></div>
                     <div class="col-md-3"><strong>Tipo:</strong><br><?php echo htmlspecialchars(ucfirst($tipoVenta)); ?></div>
-                    <div class="col-md-3"><strong>Abonado:</strong><br><?php echo mayorista_formatear_moneda($venta['abona']); ?></div>
+                    <div class="col-md-3"><strong>Abonado actual:</strong><br><?php echo mayorista_formatear_moneda($venta['abona']); ?></div>
                     <div class="col-md-3"><strong>Total actual:</strong><br><?php echo mayorista_formatear_moneda($venta['total']); ?></div>
                 </div>
 
@@ -358,7 +462,6 @@ include_once "includes/header.php";
                                 name="fecha_venta"
                                 class="form-control"
                                 value="<?php echo htmlspecialchars($fechaVentaActual); ?>"
-                                max="<?php echo date('Y-m-d'); ?>"
                                 required>
                             <small class="form-text text-muted">Solo se puede editar mientras la venta no tenga factura aprobada en AFIP.</small>
                         </div>
@@ -463,6 +566,16 @@ include_once "includes/header.php";
                             </tbody>
                             <tfoot>
                                 <tr>
+                                    <th colspan="3" class="text-right">Subtotal</th>
+                                    <th id="subtotalBrutoTabla"><?php echo mayorista_formatear_moneda($venta['total']); ?></th>
+                                    <th></th>
+                                </tr>
+                                <tr>
+                                    <th colspan="3" class="text-right">Descuento</th>
+                                    <th id="descuentoMontoTabla"><?php echo mayorista_formatear_moneda(0); ?></th>
+                                    <th></th>
+                                </tr>
+                                <tr>
                                     <th colspan="3" class="text-right">Nuevo total</th>
                                     <th id="nuevoTotalTabla"><?php echo mayorista_formatear_moneda($venta['total']); ?></th>
                                     <th></th>
@@ -471,6 +584,55 @@ include_once "includes/header.php";
                         </table>
                     </div>
                     <button type="button" class="btn btn-outline-primary mb-3" id="btnAgregarFila">Agregar producto</button>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="descuento_porcentaje">Descuento (%)</label>
+                                <input
+                                    type="number"
+                                    id="descuento_porcentaje"
+                                    name="descuento_porcentaje"
+                                    class="form-control"
+                                    step="0.01"
+                                    min="0"
+                                    max="100"
+                                    value="<?php echo htmlspecialchars($descuentoVisible); ?>"
+                                    <?php echo !$hasDescuentoVenta ? 'disabled' : ''; ?>>
+                                <small class="form-text text-muted">
+                                    <?php echo $hasDescuentoVenta
+                                        ? 'Se aplica sobre el subtotal total del pedido.'
+                                        : 'Aplicá antes la migración de descuentos desde configuración.'; ?>
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="abona_edicion">Abona ahora</label>
+                                <input
+                                    type="number"
+                                    id="abona_edicion"
+                                    name="abona"
+                                    class="form-control"
+                                    step="0.01"
+                                    min="0"
+                                    value="<?php echo htmlspecialchars($abonaVisible); ?>">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="monto_cc_edicion">Se carga a CC</label>
+                                <input
+                                    type="number"
+                                    id="monto_cc_edicion"
+                                    class="form-control"
+                                    step="0.01"
+                                    min="0"
+                                    value="<?php echo htmlspecialchars($montoCcVisible); ?>"
+                                    readonly>
+                                <small class="form-text text-muted">El saldo a cuenta corriente se calcula automáticamente según lo que cargues en "Abona ahora".</small>
+                            </div>
+                        </div>
+                    </div>
                     <div>
                         <button class="btn btn-success" type="submit">Guardar cambios</button>
                     </div>
@@ -548,8 +710,70 @@ function formatearMoneda(monto) {
     return '$' + (parseFloat(monto) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function obtenerSubtotalEdicion() {
+    let subtotal = 0;
+    document.querySelectorAll('#tablaDetalleEditable tbody tr').forEach(function(row) {
+        const cantidadInput = row.querySelector('.cantidad-input');
+        const precioInput = row.querySelector('.precio-input');
+        const cantidad = parseFloat(cantidadInput ? cantidadInput.value : 0) || 0;
+        const precio = parseFloat(precioInput ? precioInput.value : 0) || 0;
+        subtotal += cantidad * precio;
+    });
+
+    return subtotal;
+}
+
+function obtenerDescuentoPorcentajeEdicion() {
+    const descuentoInput = document.getElementById('descuento_porcentaje');
+    let descuento = parseFloat(descuentoInput ? descuentoInput.value : 0);
+    if (isNaN(descuento) || descuento < 0) {
+        descuento = 0;
+    }
+    if (descuento > 100) {
+        descuento = 100;
+    }
+    return descuento;
+}
+
+function obtenerTotalEdicion() {
+    const subtotal = obtenerSubtotalEdicion();
+    const descuento = obtenerDescuentoPorcentajeEdicion();
+    return Math.max(0, subtotal - (subtotal * descuento / 100));
+}
+
+function actualizarCobroEdicion(total, opciones = {}) {
+    const abonaInput = document.getElementById('abona_edicion');
+    const montoCcInput = document.getElementById('monto_cc_edicion');
+    if (!abonaInput || !montoCcInput) {
+        return;
+    }
+
+    const valorAbona = String(abonaInput.value || '').trim();
+    if (valorAbona === '') {
+        montoCcInput.value = '';
+        return;
+    }
+
+    let abona = parseFloat(valorAbona);
+    if (isNaN(abona) || abona < 0) {
+        abona = 0;
+    }
+    if (abona > total) {
+        abona = total;
+    }
+
+    if (!opciones.mantenerAbona) {
+        abonaInput.value = abona.toFixed(2);
+    }
+
+    montoCcInput.value = Math.max(0, total - abona).toFixed(2);
+}
+
 function recalcularTotalesEdicion() {
-    let total = 0;
+    const subtotal = obtenerSubtotalEdicion();
+    const descuento = obtenerDescuentoPorcentajeEdicion();
+    const descuentoImporte = subtotal * descuento / 100;
+    const total = Math.max(0, subtotal - descuentoImporte);
     document.querySelectorAll('#tablaDetalleEditable tbody tr').forEach(function(row) {
         const cantidadInput = row.querySelector('.cantidad-input');
         const precioInput = row.querySelector('.precio-input');
@@ -557,15 +781,24 @@ function recalcularTotalesEdicion() {
         const cantidad = parseFloat(cantidadInput ? cantidadInput.value : 0) || 0;
         const precio = parseFloat(precioInput ? precioInput.value : 0) || 0;
         const subtotal = cantidad * precio;
-        total += subtotal;
         if (subtotalCell) {
             subtotalCell.textContent = formatearMoneda(subtotal);
         }
     });
+    const subtotalCell = document.getElementById('subtotalBrutoTabla');
+    if (subtotalCell) {
+        subtotalCell.textContent = formatearMoneda(subtotal);
+    }
+    const descuentoCell = document.getElementById('descuentoMontoTabla');
+    if (descuentoCell) {
+        descuentoCell.textContent = formatearMoneda(descuentoImporte);
+    }
     const totalCell = document.getElementById('nuevoTotalTabla');
     if (totalCell) {
         totalCell.textContent = formatearMoneda(total);
     }
+
+    actualizarCobroEdicion(total, { mantenerAbona: true });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -573,7 +806,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const tablaBody = document.querySelector('#tablaDetalleEditable tbody');
     const btnAgregarVencimiento = document.getElementById('btnAgregarVencimientoVentaEdicion');
     const listaVencimientos = document.getElementById('vencimientosVentaEdicionLista');
+    const fechaVentaInput = document.getElementById('fecha_venta');
     const tipoVentaActual = <?php echo json_encode($tipoVenta); ?>;
+
+    if (fechaVentaInput) {
+        fechaVentaInput.addEventListener('blur', function() {
+            const hoy = new Date().toISOString().slice(0, 10);
+            if (this.value && this.value > hoy) {
+                this.value = hoy;
+                alert('La fecha de la nota no puede ser futura.');
+            }
+        });
+    }
 
     function inicializarBuscadorProducto(input) {
         if (!input || typeof window.jQuery === 'undefined' || typeof window.jQuery.fn.autocomplete !== 'function') {
@@ -753,10 +997,61 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        if (event.target.matches('.cantidad-input, .precio-input')) {
+        if (event.target.matches('.cantidad-input, .precio-input, #descuento_porcentaje')) {
             recalcularTotalesEdicion();
+            return;
+        }
+
+        if (event.target.matches('#descuento_porcentaje')) {
+            recalcularTotalesEdicion();
+            return;
+        }
+
+        if (event.target.matches('#abona_edicion')) {
+            actualizarCobroEdicion(obtenerTotalEdicion(), { mantenerAbona: true });
         }
     });
+
+    document.addEventListener('blur', function(event) {
+        if (event.target.matches('#descuento_porcentaje')) {
+            let descuento = parseFloat(event.target.value);
+            if (isNaN(descuento) || descuento < 0) {
+                descuento = 0;
+            }
+            if (descuento > 100) {
+                descuento = 100;
+            }
+            event.target.value = descuento.toFixed(2);
+            recalcularTotalesEdicion();
+            return;
+        }
+
+        if (!event.target.matches('#abona_edicion')) {
+            return;
+        }
+
+        const abonaInput = event.target;
+        const valorAbona = String(abonaInput.value || '').trim();
+        if (valorAbona === '') {
+            const montoCcInput = document.getElementById('monto_cc_edicion');
+            if (montoCcInput) {
+                montoCcInput.value = '';
+            }
+            return;
+        }
+
+        let abona = parseFloat(valorAbona);
+        const total = obtenerTotalEdicion();
+        if (isNaN(abona) || abona < 0) {
+            abona = 0;
+        }
+        if (abona > total) {
+            abona = total;
+        }
+
+        abonaInput.value = abona.toFixed(2);
+        actualizarCobroEdicion(total, { mantenerAbona: true });
+    }, true);
 
     const formEditarVenta = document.getElementById('formEditarVenta');
     if (formEditarVenta) {

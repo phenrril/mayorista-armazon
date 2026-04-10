@@ -341,6 +341,64 @@ function mayorista_invalidar_token_migracion_vencimientos_venta()
     }
 }
 
+function mayorista_generar_token_migracion_descuentos_venta()
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return '';
+    }
+
+    if (empty($_SESSION['migracion_descuentos_venta_token']) || !is_string($_SESSION['migracion_descuentos_venta_token'])) {
+        $_SESSION['migracion_descuentos_venta_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['migracion_descuentos_venta_token'];
+}
+
+function mayorista_validar_token_migracion_descuentos_venta($token)
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['migracion_descuentos_venta_token'])) {
+        return false;
+    }
+
+    return hash_equals($_SESSION['migracion_descuentos_venta_token'], (string) $token);
+}
+
+function mayorista_invalidar_token_migracion_descuentos_venta()
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['migracion_descuentos_venta_token']);
+    }
+}
+
+function mayorista_generar_token_migracion_movimientos_cc()
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return '';
+    }
+
+    if (empty($_SESSION['migracion_movimientos_cc_token']) || !is_string($_SESSION['migracion_movimientos_cc_token'])) {
+        $_SESSION['migracion_movimientos_cc_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['migracion_movimientos_cc_token'];
+}
+
+function mayorista_validar_token_migracion_movimientos_cc($token)
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['migracion_movimientos_cc_token'])) {
+        return false;
+    }
+
+    return hash_equals($_SESSION['migracion_movimientos_cc_token'], (string) $token);
+}
+
+function mayorista_invalidar_token_migracion_movimientos_cc()
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['migracion_movimientos_cc_token']);
+    }
+}
+
 function mayorista_generar_token_importacion_productos()
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -594,6 +652,56 @@ function mayorista_schema_vencimientos_venta_listo($conexion)
         && mayorista_column_exists($conexion, 'venta_vencimientos', 'id_usuario');
 }
 
+function mayorista_schema_descuentos_venta_listo($conexion)
+{
+    return mayorista_column_exists($conexion, 'ventas', 'descuento_porcentaje');
+}
+
+function mayorista_schema_movimientos_cc_metodos_listo($conexion)
+{
+    return mayorista_table_exists($conexion, 'movimientos_cc')
+        && mayorista_column_exists($conexion, 'movimientos_cc', 'id_metodo')
+        && mayorista_column_exists($conexion, 'movimientos_cc', 'origen_tipo')
+        && mayorista_column_exists($conexion, 'movimientos_cc', 'origen_id');
+}
+
+function mayorista_migracion_movimientos_cc_metodos_fue_ejecutada($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $query = mysqli_query(
+        $conexion,
+        "SELECT valor
+         FROM sistema_flags
+         WHERE clave = 'migracion_movimientos_cc_metodos_2026'
+         LIMIT 1"
+    );
+
+    if (!$query || mysqli_num_rows($query) === 0) {
+        return false;
+    }
+
+    $row = mysqli_fetch_assoc($query);
+    return isset($row['valor']) && $row['valor'] === '1';
+}
+
+function mayorista_marcar_migracion_movimientos_cc_metodos_ejecutada($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $sql = "INSERT INTO sistema_flags (clave, valor)
+        VALUES ('migracion_movimientos_cc_metodos_2026', '1')
+        ON DUPLICATE KEY UPDATE
+            valor = VALUES(valor),
+            updated_at = CURRENT_TIMESTAMP";
+
+    return mysqli_query($conexion, $sql) !== false;
+}
+
 function mayorista_estado_vencimiento_venta_valido($estado)
 {
     return in_array((string) $estado, array('pendiente', 'cumplido', 'cancelado'), true);
@@ -838,6 +946,43 @@ function mayorista_marcar_migracion_finanzas_operativas_ejecutada($conexion)
 
     $sql = "INSERT INTO sistema_flags (clave, valor)
         VALUES ('migracion_finanzas_operativas_2026', '1')
+        ON DUPLICATE KEY UPDATE
+            valor = VALUES(valor),
+            updated_at = CURRENT_TIMESTAMP";
+
+    return mysqli_query($conexion, $sql) !== false;
+}
+
+function mayorista_migracion_descuentos_venta_fue_ejecutada($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $query = mysqli_query(
+        $conexion,
+        "SELECT valor
+         FROM sistema_flags
+         WHERE clave = 'migracion_descuentos_venta_2026'
+         LIMIT 1"
+    );
+
+    if (!$query || mysqli_num_rows($query) === 0) {
+        return false;
+    }
+
+    $row = mysqli_fetch_assoc($query);
+    return isset($row['valor']) && $row['valor'] === '1';
+}
+
+function mayorista_marcar_migracion_descuentos_venta_ejecutada($conexion)
+{
+    if (!mayorista_asegurar_tabla_flags($conexion)) {
+        return false;
+    }
+
+    $sql = "INSERT INTO sistema_flags (clave, valor)
+        VALUES ('migracion_descuentos_venta_2026', '1')
         ON DUPLICATE KEY UPDATE
             valor = VALUES(valor),
             updated_at = CURRENT_TIMESTAMP";
@@ -1137,6 +1282,77 @@ function mayorista_limpiar_descripcion($descripcion, $maxLength = 255)
     return substr((string) $descripcion, 0, $maxLength);
 }
 
+function mayorista_metodos_pago_default()
+{
+    return array(
+        1 => 'Efectivo',
+        2 => 'Credito',
+        3 => 'Debito',
+        4 => 'Transferencia',
+        5 => 'Cheque',
+    );
+}
+
+function mayorista_obtener_metodos_pago($conexion)
+{
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+
+    $cache = mayorista_metodos_pago_default();
+    if (!mayorista_table_exists($conexion, 'metodos')) {
+        return $cache;
+    }
+
+    $columnaDescripcion = mayorista_column_exists($conexion, 'metodos', 'descripcion')
+        ? 'descripcion'
+        : (mayorista_column_exists($conexion, 'metodos', 'metodo') ? 'metodo' : '');
+    if ($columnaDescripcion === '') {
+        return $cache;
+    }
+
+    $query = mysqli_query(
+        $conexion,
+        "SELECT id, $columnaDescripcion AS etiqueta
+         FROM metodos
+         ORDER BY id ASC"
+    );
+    if (!$query) {
+        return $cache;
+    }
+
+    $metodos = array();
+    while ($row = mysqli_fetch_assoc($query)) {
+        $idMetodo = (int) ($row['id'] ?? 0);
+        $etiqueta = trim((string) ($row['etiqueta'] ?? ''));
+        if ($idMetodo <= 0 || $etiqueta === '') {
+            continue;
+        }
+
+        $metodos[$idMetodo] = $etiqueta;
+    }
+
+    if (!isset($metodos[5])) {
+        $metodos[5] = 'Cheque';
+    }
+
+    $cache = $metodos + mayorista_metodos_pago_default();
+    ksort($cache);
+    return $cache;
+}
+
+function mayorista_metodo_pago_etiqueta($conexion, $idMetodo)
+{
+    $idMetodo = (int) $idMetodo;
+    if ($idMetodo <= 0) {
+        return '';
+    }
+
+    $metodos = mayorista_obtener_metodos_pago($conexion);
+    return isset($metodos[$idMetodo]) ? (string) $metodos[$idMetodo] : '';
+}
+
 function mayorista_obtener_o_crear_proveedor($conexion, $nombre)
 {
     $nombre = mayorista_limpiar_descripcion($nombre, 150);
@@ -1330,7 +1546,7 @@ function mayorista_validar_nuevo_cargo_cc($conexion, $idCliente, $montoCargo)
     );
 }
 
-function mayorista_registrar_movimiento_cc($conexion, $idCliente, $tipo, $monto, $descripcion, $idUsuario, $idVenta = null, $fecha = null)
+function mayorista_registrar_movimiento_cc($conexion, $idCliente, $tipo, $monto, $descripcion, $idUsuario, $idVenta = null, $fecha = null, $idMetodo = null, $origenTipo = null, $origenId = null)
 {
     if (!mayorista_table_exists($conexion, 'cuenta_corriente') || !mayorista_table_exists($conexion, 'movimientos_cc')) {
         return 0;
@@ -1339,6 +1555,7 @@ function mayorista_registrar_movimiento_cc($conexion, $idCliente, $tipo, $monto,
     $idCliente = (int) $idCliente;
     $idUsuario = (int) $idUsuario;
     $idVenta = $idVenta !== null ? (int) $idVenta : 'NULL';
+    $idMetodo = $idMetodo !== null ? (int) $idMetodo : 0;
     $monto = (float) $monto;
     $tipo = $tipo === 'pago' ? 'pago' : 'cargo';
     $descripcion = mysqli_real_escape_string($conexion, $descripcion);
@@ -1365,13 +1582,43 @@ function mayorista_registrar_movimiento_cc($conexion, $idCliente, $tipo, $monto,
         }
     }
 
+    $campos = array(
+        'id_cuenta_corriente',
+        'id_venta',
+        'tipo',
+        'monto',
+        'descripcion',
+        'id_usuario',
+        'fecha',
+    );
+    $valores = array(
+        $idCuenta,
+        $ventaValue,
+        "'" . mysqli_real_escape_string($conexion, $tipo) . "'",
+        $monto,
+        "'" . $descripcion . "'",
+        $idUsuario,
+        $fechaSql,
+    );
+    if (mayorista_column_exists($conexion, 'movimientos_cc', 'id_metodo')) {
+        $campos[] = 'id_metodo';
+        $valores[] = $idMetodo > 0 ? $idMetodo : 'NULL';
+    }
+    if (mayorista_column_exists($conexion, 'movimientos_cc', 'origen_tipo')) {
+        $origenTipo = trim((string) $origenTipo);
+        $campos[] = 'origen_tipo';
+        $valores[] = $origenTipo !== '' ? "'" . mysqli_real_escape_string($conexion, $origenTipo) . "'" : 'NULL';
+    }
+    if (mayorista_column_exists($conexion, 'movimientos_cc', 'origen_id')) {
+        $origenId = (int) $origenId;
+        $campos[] = 'origen_id';
+        $valores[] = $origenId > 0 ? $origenId : 'NULL';
+    }
+
     $insert = mysqli_query(
         $conexion,
-        "INSERT INTO movimientos_cc (
-            id_cuenta_corriente, id_venta, tipo, monto, descripcion, id_usuario, fecha
-         ) VALUES (
-            $idCuenta, $ventaValue, '$tipo', $monto, '$descripcion', $idUsuario, $fechaSql
-         )"
+        "INSERT INTO movimientos_cc (" . implode(', ', $campos) . ")
+         VALUES (" . implode(', ', $valores) . ")"
     );
 
     if (!$insert) {
