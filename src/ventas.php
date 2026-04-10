@@ -129,6 +129,13 @@ include_once "includes/header.php";
                         <small class="form-text text-muted">Se permiten ventas con fecha pasada, pero no futura.</small>
                     </div>
                 </div>
+                <div class="col-lg-3 col-md-6 mt-3 mt-md-0">
+                    <div class="form-group mb-0">
+                        <label>Hora de venta</label>
+                        <input type="time" id="hora_venta" class="form-control form-control-modern" value="<?php echo date('H:i'); ?>" step="60">
+                        <small class="form-text text-muted">Se guarda junto con la fecha para mostrar la hora real de la operación.</small>
+                    </div>
+                </div>
             </div>
 
             <div class="row">

@@ -98,6 +98,28 @@ include_once "includes/header.php";
     padding-top: 0.2rem;
     padding-bottom: 0.2rem;
 }
+
+.ventas-tabla-shell .venta-fecha {
+    min-width: 118px;
+    line-height: 1.1;
+}
+
+.ventas-tabla-shell .venta-fecha-dia {
+    display: block;
+    font-weight: 600;
+}
+
+.ventas-tabla-shell .venta-fecha-hora {
+    display: inline-block;
+    margin-top: 0.2rem;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(13, 110, 253, 0.12);
+    color: #0b5ed7;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
 </style>
 <div class="ventas-container">
     <div class="page-header">
@@ -163,6 +185,9 @@ include_once "includes/header.php";
                                     $opticaVisible = trim((string) ($row['optica'] ?? '')) !== ''
                                         ? $row['optica']
                                         : ($row['nombre'] ?: 'Consumidor final');
+                                    $timestampFecha = !empty($row['fecha']) ? strtotime($row['fecha']) : false;
+                                    $fechaVentaTexto = $timestampFecha ? date('d/m/Y', $timestampFecha) : '-';
+                                    $horaVentaTexto = $timestampFecha ? date('H:i', $timestampFecha) : '--:--';
                             ?>
                                 <tr>
                                     <td data-order="<?php echo (int) $row['id']; ?>">#<?php echo (int) $row['id']; ?></td>
@@ -173,7 +198,12 @@ include_once "includes/header.php";
                                     <td><?php echo mayorista_formatear_moneda($montoCc); ?></td>
                                     <td><?php echo mayorista_formatear_moneda($saldoCc); ?></td>
                                     <td><?php echo $precioModificado; ?></td>
-                                    <td data-order="<?php echo (int) strtotime($row['fecha']); ?>"><?php echo date('d/m/Y H:i', strtotime($row['fecha'])); ?></td>
+                                    <td data-order="<?php echo $timestampFecha ? (int) $timestampFecha : 0; ?>">
+                                        <div class="venta-fecha">
+                                            <span class="venta-fecha-dia"><?php echo $fechaVentaTexto; ?></span>
+                                            <span class="venta-fecha-hora"><?php echo $horaVentaTexto; ?></span>
+                                        </div>
+                                    </td>
                                     <td>
                                         <?php if (!$tieneFactura) { ?>
                                             <a class="btn btn-sm btn-outline-primary" href="editar_venta.php?id=<?php echo (int) $row['id']; ?>">

@@ -545,15 +545,19 @@ if (isset($_POST['procesarVenta'])) {
     $observacion = mysqli_real_escape_string($conexion, trim($_POST['observacion'] ?? ''));
     $vencimientosVentaRaw = trim((string) ($_POST['vencimientos_venta'] ?? '[]'));
     $fechaVentaInput = trim((string) ($_POST['fecha_venta'] ?? date('Y-m-d')));
+    $horaVentaInput = trim((string) ($_POST['hora_venta'] ?? date('H:i')));
     $chequePlazoDias = (int) ($_POST['cheque_plazo_dias'] ?? 30);
     $chequeFechaDeposito = trim((string) ($_POST['cheque_fecha_deposito'] ?? ''));
     if (!mayorista_fecha_iso_valida($fechaVentaInput)) {
         ajax_json(array('mensaje' => 'error', 'detalle' => 'La fecha de la venta no es válida.'));
     }
+    if (!preg_match('/^\d{2}:\d{2}$/', $horaVentaInput)) {
+        ajax_json(array('mensaje' => 'error', 'detalle' => 'La hora de la venta no es válida.'));
+    }
     if ($fechaVentaInput > date('Y-m-d')) {
         ajax_json(array('mensaje' => 'error', 'detalle' => 'La fecha de la venta no puede ser futura.'));
     }
-    $fecha = mayorista_fecha_hora_desde_iso($fechaVentaInput);
+    $fecha = mayorista_fecha_hora_desde_iso($fechaVentaInput, $horaVentaInput);
     if (!in_array($modoDespacho, mayorista_modos_despacho(), true)) {
         $modoDespacho = 'A convenir';
     }

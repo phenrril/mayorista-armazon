@@ -1101,8 +1101,13 @@ function mayorista_fecha_hora_desde_iso($fecha, $horaBase = null)
     }
 
     $hora = date('H:i:s');
-    if (is_string($horaBase) && preg_match('/\b(\d{2}:\d{2}:\d{2})\b/', $horaBase, $matches)) {
-        $hora = $matches[1];
+    if (is_string($horaBase)) {
+        $horaBase = trim($horaBase);
+        if (preg_match('/^\d{2}:\d{2}$/', $horaBase)) {
+            $hora = $horaBase . ':00';
+        } elseif (preg_match('/\b(\d{2}:\d{2}:\d{2})\b/', $horaBase, $matches)) {
+            $hora = $matches[1];
+        }
     }
 
     return $fecha . ' ' . $hora;
