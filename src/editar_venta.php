@@ -38,6 +38,7 @@ if (mayorista_venta_tiene_factura_aprobada($conexion, $idVenta)) {
 
 $tipoVenta = mayorista_tipo_venta_valido($venta['tipo_venta'] ?? 'minorista');
 $hasMayorista = mayorista_column_exists($conexion, 'producto', 'precio_mayorista');
+$hasVencimientosVenta = mayorista_schema_vencimientos_venta_listo($conexion);
 $alert = '';
 $fechaVentaActual = !empty($venta['fecha']) ? date('Y-m-d', strtotime($venta['fecha'])) : date('Y-m-d');
 
@@ -49,8 +50,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $abona = round((float) ($venta['abona'] ?? 0), 2);
     $metodoPago = (int) ($venta['id_metodo'] ?? 1);
     $idCliente = (int) ($venta['id_cliente'] ?? 0);
+    $vencimientoIds = $_POST['vencimiento_id'] ?? array();
+    $vencimientoFechas = $_POST['vencimiento_fecha'] ?? array();
+    $vencimientoMontos = $_POST['vencimiento_monto'] ?? array();
+    $vencimientoNotas = $_POST['vencimiento_nota'] ?? array();
+    $vencimientoEstados = $_POST['vencimiento_estado'] ?? array();
     $horaVentaOriginal = !empty($venta['fecha']) ? date('H:i:s', strtotime($venta['fecha'])) : date('H:i:s');
     $fechaVentaSql = mayorista_fecha_hora_desde_iso($fechaVentaInput, $horaVentaOriginal);
+    $vencimientosVenta = array();
+
+    if ($hasVencimientosVenta) {
+        $totalVencimientos = max(
+            count($vencimientoIds),
+            count($vencimientoFechas),
+            count($vencimientoMontos),
+            count($vencimientoNotas),
+            count($vencimientoEstados)
+        );
+
+        for ($i = 0; $i < $totalVencimientos; $i++) {
+            $idVencimiento = (int) ($vencimientoIds[$i] ?? 0);
+            $fechaVencimiento = trim((string) ($vencimientoFechas[$i] ?? ''));
+            $montoVencimiento = trim((string) ($vencimientoMontos[$i] ?? ''));
+            $notaVencimiento = trim((string) ($vencimientoNotas[$i] ?? ''));
+            $estadoVencimiento = trim((string) ($vencimientoEstados[$i] ?? 'pendiente'));
+
+            if ($idVencimiento <= 0 && $fechaVencimiento === '' && $montoVencimiento === '' && $notaVencimiento === '') {
+                continue;
+            }
+
+            $vencimientosVenta[] = array(
+                'id' => $idVencimiento,
+                'fecha_vencimiento' => $fechaVencimiento,
+                'monto' => $montoVencimiento,
+                'nota_interna' => $notaVencimiento,
+                'estado' => $estadoVencimiento,
+            );
+        }
+    }
 
     if (!mayorista_fecha_iso_valida($fechaVentaInput)) {
         $alert = '<div class="alert alert-danger">La fecha de la nota no es válida.</div>';
@@ -251,6 +288,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             );
                         }
 
+                        if ($hasVencimientosVenta) {
+                            mayorista_guardar_vencimientos_venta($conexion, $idVenta, $vencimientosVenta, $id_user);
+                        }
+
                         mysqli_commit($conexion);
                         $alert = '<div class="alert alert-success">Venta actualizada correctamente.</div>';
 
@@ -282,6 +323,7 @@ $detalleVenta = mysqli_query(
      WHERE dv.id_venta = $idVenta
      ORDER BY dv.id ASC"
 );
+$vencimientosVentaActuales = $hasVencimientosVenta ? mayorista_obtener_vencimientos_venta($conexion, $idVenta) : array();
 include_once "includes/header.php";
 ?>
 <div class="row">
@@ -316,6 +358,49 @@ include_once "includes/header.php";
                             <small class="form-text text-muted">Solo se puede editar mientras la venta no tenga factura aprobada en AFIP.</small>
                         </div>
                     </div>
+                    <?php if ($hasVencimientosVenta) { ?>
+                    <div class="card border mb-4">
+                        <div class="card-body">
+                            <h5 class="mb-2">Vencimientos internos</h5>
+                            <p class="text-muted">Estos vencimientos son internos y no se imprimen en la nota de pedido del cliente.</p>
+                            <div id="vencimientosVentaEdicionLista">
+                                <?php foreach ($vencimientosVentaActuales as $vencimiento) { ?>
+                                    <div class="border rounded p-3 mb-3 js-vencimiento-edicion-row">
+                                        <input type="hidden" name="vencimiento_id[]" value="<?php echo (int) $vencimiento['id']; ?>">
+                                        <div class="form-row align-items-end">
+                                            <div class="form-group col-md-3">
+                                                <label>Fecha</label>
+                                                <input type="date" name="vencimiento_fecha[]" class="form-control" value="<?php echo htmlspecialchars((string) ($vencimiento['fecha_vencimiento'] ?? '')); ?>">
+                                            </div>
+                                            <div class="form-group col-md-3">
+                                                <label>Monto opcional</label>
+                                                <input type="number" name="vencimiento_monto[]" class="form-control" min="0" step="0.01" value="<?php echo isset($vencimiento['monto']) && $vencimiento['monto'] !== null ? htmlspecialchars(number_format((float) $vencimiento['monto'], 2, '.', '')) : ''; ?>">
+                                            </div>
+                                            <div class="form-group col-md-4">
+                                                <label>Estado</label>
+                                                <select name="vencimiento_estado[]" class="form-control">
+                                                    <?php foreach (array('pendiente', 'cumplido', 'cancelado') as $estadoVencimiento) { ?>
+                                                        <option value="<?php echo $estadoVencimiento; ?>" <?php echo ($vencimiento['estado'] ?? 'pendiente') === $estadoVencimiento ? 'selected' : ''; ?>>
+                                                            <?php echo htmlspecialchars(ucfirst($estadoVencimiento)); ?>
+                                                        </option>
+                                                    <?php } ?>
+                                                </select>
+                                            </div>
+                                            <div class="form-group col-md-2">
+                                                <button type="button" class="btn btn-outline-danger btn-block js-remover-vencimiento-edicion">&times;</button>
+                                            </div>
+                                        </div>
+                                        <div class="form-group mb-0">
+                                            <label>Nota interna</label>
+                                            <textarea name="vencimiento_nota[]" class="form-control" rows="2" placeholder="Detalle interno del recordatorio"><?php echo htmlspecialchars((string) ($vencimiento['nota_interna'] ?? '')); ?></textarea>
+                                        </div>
+                                    </div>
+                                <?php } ?>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" id="btnAgregarVencimientoVentaEdicion">Agregar vencimiento</button>
+                        </div>
+                    </div>
+                    <?php } ?>
                     <div class="table-responsive">
                         <table class="table table-bordered" id="tablaDetalleEditable">
                             <thead>
@@ -409,6 +494,39 @@ include_once "includes/header.php";
     </tr>
 </template>
 
+<?php if ($hasVencimientosVenta) { ?>
+<template id="vencimientoVentaEdicionTemplate">
+    <div class="border rounded p-3 mb-3 js-vencimiento-edicion-row">
+        <input type="hidden" name="vencimiento_id[]" value="">
+        <div class="form-row align-items-end">
+            <div class="form-group col-md-3">
+                <label>Fecha</label>
+                <input type="date" name="vencimiento_fecha[]" class="form-control" value="">
+            </div>
+            <div class="form-group col-md-3">
+                <label>Monto opcional</label>
+                <input type="number" name="vencimiento_monto[]" class="form-control" min="0" step="0.01" value="">
+            </div>
+            <div class="form-group col-md-4">
+                <label>Estado</label>
+                <select name="vencimiento_estado[]" class="form-control">
+                    <option value="pendiente" selected>Pendiente</option>
+                    <option value="cumplido">Cumplido</option>
+                    <option value="cancelado">Cancelado</option>
+                </select>
+            </div>
+            <div class="form-group col-md-2">
+                <button type="button" class="btn btn-outline-danger btn-block js-remover-vencimiento-edicion">&times;</button>
+            </div>
+        </div>
+        <div class="form-group mb-0">
+            <label>Nota interna</label>
+            <textarea name="vencimiento_nota[]" class="form-control" rows="2" placeholder="Detalle interno del recordatorio"></textarea>
+        </div>
+    </div>
+</template>
+<?php } ?>
+
 <script>
 function formatearMoneda(monto) {
     return '$' + (parseFloat(monto) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -437,6 +555,8 @@ function recalcularTotalesEdicion() {
 document.addEventListener('DOMContentLoaded', function() {
     const btnAgregarFila = document.getElementById('btnAgregarFila');
     const tablaBody = document.querySelector('#tablaDetalleEditable tbody');
+    const btnAgregarVencimiento = document.getElementById('btnAgregarVencimientoVentaEdicion');
+    const listaVencimientos = document.getElementById('vencimientosVentaEdicionLista');
     const tipoVentaActual = <?php echo json_encode($tipoVenta); ?>;
 
     function inicializarBuscadorProducto(input) {
@@ -547,6 +667,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    if (btnAgregarVencimiento && listaVencimientos) {
+        btnAgregarVencimiento.addEventListener('click', function() {
+            const template = document.getElementById('vencimientoVentaEdicionTemplate');
+            if (!template || !template.content) {
+                return;
+            }
+
+            const clone = document.importNode(template.content, true);
+            listaVencimientos.appendChild(clone);
+        });
+    }
+
     document.addEventListener('click', function(event) {
         const botonCantidad = event.target.closest('.ajustar-cantidad');
         if (botonCantidad) {
@@ -575,6 +707,15 @@ document.addEventListener('DOMContentLoaded', function() {
             if (fila) {
                 fila.remove();
                 recalcularTotalesEdicion();
+            }
+            return;
+        }
+
+        const botonRemoverVencimiento = event.target.closest('.js-remover-vencimiento-edicion');
+        if (botonRemoverVencimiento) {
+            const fila = botonRemoverVencimiento.closest('.js-vencimiento-edicion-row');
+            if (fila) {
+                fila.remove();
             }
             return;
         }
@@ -616,9 +757,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
+            document.querySelectorAll('.js-vencimiento-edicion-row').forEach(function(row) {
+                const fecha = String((row.querySelector('input[name="vencimiento_fecha[]"]') || {}).value || '').trim();
+                const monto = String((row.querySelector('input[name="vencimiento_monto[]"]') || {}).value || '').trim();
+                const nota = String((row.querySelector('textarea[name="vencimiento_nota[]"]') || {}).value || '').trim();
+                const idVencimiento = parseInt((row.querySelector('input[name="vencimiento_id[]"]') || {}).value || '0', 10) || 0;
+
+                if ((idVencimiento > 0 || monto !== '' || nota !== '') && fecha === '') {
+                    filaInvalida = true;
+                }
+            });
+
             if (filaInvalida) {
                 event.preventDefault();
-                alert('Seleccioná un producto válido desde la búsqueda en todas las filas antes de guardar.');
+                alert('Revisá los productos y vencimientos internos antes de guardar. Cada fila debe tener datos válidos y fecha si corresponde.');
             }
         });
     }

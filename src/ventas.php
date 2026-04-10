@@ -31,6 +31,7 @@ $hasClienteLocalidad = mayorista_column_exists($conexion, 'cliente', 'localidad'
 $hasClienteCodigoPostal = mayorista_column_exists($conexion, 'cliente', 'codigo_postal');
 $hasClienteProvincia = mayorista_column_exists($conexion, 'cliente', 'provincia');
 $hasModoDespacho = mayorista_column_exists($conexion, 'ventas', 'modo_despacho');
+$hasVencimientosVenta = mayorista_schema_vencimientos_venta_listo($conexion);
 $modosDespacho = mayorista_modos_despacho();
 $ventaToken = mayorista_generar_token_venta();
 $schemaReady = mayorista_column_exists($conexion, 'producto', 'precio_mayorista')
@@ -214,6 +215,47 @@ include_once "includes/header.php";
                     </div>
                 </div>
             </div>
+
+            <?php if ($hasVencimientosVenta) { ?>
+            <div class="card card-modern mt-4">
+                <div class="card-header card-header-modern">
+                    <i class="fas fa-calendar-alt mr-2"></i> Vencimientos internos
+                </div>
+                <div class="card-body card-body-modern">
+                    <p class="text-muted mb-3">
+                        Cargá uno o más vencimientos internos por esta venta. Estos datos no se imprimen en la nota de pedido del cliente.
+                    </p>
+                    <div id="vencimientos_venta_lista"></div>
+                    <button type="button" class="btn btn-outline-modern btn-modern mt-2" id="btn_agregar_vencimiento">
+                        <i class="fas fa-plus mr-1"></i> Agregar vencimiento
+                    </button>
+                </div>
+            </div>
+
+            <template id="tpl_vencimiento_venta">
+                <div class="border rounded p-3 mb-3 js-vencimiento-venta-row">
+                    <div class="form-row align-items-end">
+                        <div class="form-group col-md-5 mb-2">
+                            <label>Fecha</label>
+                            <input type="date" class="form-control form-control-modern js-vencimiento-fecha">
+                        </div>
+                        <div class="form-group col-md-5 mb-2">
+                            <label>Monto opcional</label>
+                            <input type="number" class="form-control form-control-modern js-vencimiento-monto" min="0" step="0.01" placeholder="0.00">
+                        </div>
+                        <div class="form-group col-md-2 mb-2 text-right">
+                            <button type="button" class="btn btn-outline-danger btn-block js-quitar-vencimiento">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label>Nota interna</label>
+                        <textarea class="form-control form-control-modern js-vencimiento-nota" rows="2" placeholder="Ej. llamar para recordar transferencia o cheque a vencer"></textarea>
+                    </div>
+                </div>
+            </template>
+            <?php } ?>
         </div>
 
         <div class="col-lg-7">

@@ -17,6 +17,7 @@ $hasEgresos = mayorista_table_exists($conexion, 'egresos');
 $hasIngresosDescripcion = mayorista_column_exists($conexion, 'ingresos', 'descripcion');
 $hasEgresosDescripcion = $hasEgresos && mayorista_column_exists($conexion, 'egresos', 'descripcion');
 $hasFinanzas = mayorista_schema_finanzas_operativas_listo($conexion);
+$hasVencimientosVenta = mayorista_schema_vencimientos_venta_listo($conexion);
 $tesoreriaManualDisponible = $hasIngresosDescripcion && $hasEgresosDescripcion;
 $alert = '';
 
@@ -152,6 +153,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($accion === 'posponer_recordatorio' && $hasFinanzas) {
             mayorista_diferir_recordatorio_compromiso($conexion, (int) ($_POST['id_compromiso'] ?? 0));
             $alert = '<div class="alert alert-info">El recordatorio se volverá a mostrar mañana.</div>';
+        } elseif ($accion === 'posponer_recordatorio_vencimiento_venta' && $hasVencimientosVenta) {
+            mayorista_diferir_recordatorio_vencimiento_venta($conexion, (int) ($_POST['id_vencimiento_venta'] ?? 0));
+            $alert = '<div class="alert alert-info">El recordatorio interno se volverá a mostrar mañana.</div>';
         }
     } catch (Exception $e) {
         if (mysqli_errno($conexion) || mysqli_error($conexion)) {
@@ -261,7 +265,7 @@ $movimientosTesoreria = $hasEgresos
     )
     : false;
 
-$alertasFinancieras = $hasFinanzas ? mayorista_obtener_alertas_financieras($conexion, 12) : array();
+$alertasFinancieras = ($hasFinanzas || $hasVencimientosVenta) ? mayorista_obtener_alertas_financieras($conexion, 12) : array();
 $compromisosFinancieros = $hasFinanzas
     ? mysqli_query(
         $conexion,
@@ -577,12 +581,12 @@ include_once "includes/header.php";
             <div class="card" id="vencimientos-financieros">
                 <div class="card-header bg-danger text-white">Recordatorios pendientes</div>
                 <div class="card-body">
-                    <?php if ($hasFinanzas && !empty($alertasFinancieras)) { ?>
+                    <?php if (($hasFinanzas || $hasVencimientosVenta) && !empty($alertasFinancieras)) { ?>
                         <?php foreach ($alertasFinancieras as $recordatorio) { ?>
                             <div class="border rounded p-3 mb-3">
                                 <div class="d-flex justify-content-between flex-wrap">
                                     <strong><?php echo htmlspecialchars($recordatorio['descripcion']); ?></strong>
-                                    <span class="badge badge-<?php echo $recordatorio['estado'] === 'pendiente_confirmacion' ? 'warning' : 'danger'; ?>">
+                                    <span class="badge badge-<?php echo $recordatorio['estado'] === 'pendiente_confirmacion' ? 'warning' : (($recordatorio['origen'] ?? '') === 'venta_vencimiento' ? 'info' : 'danger'); ?>">
                                         <?php echo htmlspecialchars($recordatorio['estado']); ?>
                                     </span>
                                 </div>
@@ -592,9 +596,24 @@ include_once "includes/header.php";
                                     Vence: <?php echo !empty($recordatorio['fecha_vencimiento']) ? date('d/m/Y', strtotime($recordatorio['fecha_vencimiento'])) : '-'; ?>
                                     <?php if (!empty($recordatorio['fecha_deposito'])) { ?> | Depósito: <?php echo date('d/m/Y', strtotime($recordatorio['fecha_deposito'])); ?><?php } ?>
                                 </div>
-                                <div class="mb-2">Saldo pendiente: <strong><?php echo mayorista_formatear_moneda($recordatorio['saldo_pendiente']); ?></strong></div>
+                                <?php if (!empty($recordatorio['nota_interna'])) { ?>
+                                    <div class="small mb-2"><strong>Nota interna:</strong> <?php echo htmlspecialchars($recordatorio['nota_interna']); ?></div>
+                                <?php } ?>
+                                <div class="mb-2">
+                                    <?php echo ($recordatorio['origen'] ?? '') === 'venta_vencimiento' ? 'Monto de referencia' : 'Saldo pendiente'; ?>:
+                                    <strong><?php echo mayorista_formatear_moneda($recordatorio['saldo_pendiente']); ?></strong>
+                                </div>
                                 <div class="d-flex flex-wrap">
-                                    <?php if ($recordatorio['tipo'] === 'cheque_recibido' && $recordatorio['estado'] === 'pendiente_confirmacion') { ?>
+                                    <?php if (($recordatorio['origen'] ?? '') === 'venta_vencimiento') { ?>
+                                    <a class="btn btn-sm btn-outline-primary mr-2 mb-2" href="editar_venta.php?id=<?php echo (int) ($recordatorio['id_venta'] ?? 0); ?>">
+                                        Editar venta
+                                    </a>
+                                    <form method="post" class="mb-2">
+                                        <input type="hidden" name="action" value="posponer_recordatorio_vencimiento_venta">
+                                        <input type="hidden" name="id_vencimiento_venta" value="<?php echo (int) $recordatorio['id']; ?>">
+                                        <button class="btn btn-sm btn-outline-secondary" type="submit">Recordar mañana</button>
+                                    </form>
+                                    <?php } elseif ($recordatorio['tipo'] === 'cheque_recibido' && $recordatorio['estado'] === 'pendiente_confirmacion') { ?>
                                     <form method="post" class="mr-2 mb-2">
                                         <input type="hidden" name="action" value="confirmar_cheque">
                                         <input type="hidden" name="id_compromiso" value="<?php echo (int) $recordatorio['id']; ?>">
@@ -609,16 +628,18 @@ include_once "includes/header.php";
                                         <button class="btn btn-sm btn-danger" type="submit">Confirmar débito</button>
                                     </form>
                                     <?php } ?>
+                                    <?php if (($recordatorio['origen'] ?? '') !== 'venta_vencimiento') { ?>
                                     <form method="post" class="mb-2">
                                         <input type="hidden" name="action" value="posponer_recordatorio">
                                         <input type="hidden" name="id_compromiso" value="<?php echo (int) $recordatorio['id']; ?>">
                                         <button class="btn btn-sm btn-outline-secondary" type="submit">Recordar mañana</button>
                                     </form>
+                                    <?php } ?>
                                 </div>
                             </div>
                         <?php } ?>
                     <?php } else { ?>
-                        <p class="text-muted mb-0">No hay recordatorios financieros pendientes para hoy.</p>
+                        <p class="text-muted mb-0">No hay recordatorios pendientes para hoy ni para los próximos 2 días.</p>
                     <?php } ?>
                 </div>
             </div>

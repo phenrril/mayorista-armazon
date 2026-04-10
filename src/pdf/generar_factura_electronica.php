@@ -70,7 +70,8 @@ $query_detalle = mysqli_query($conexion,
     "SELECT d.*, p.descripcion, p.codigo, p.marca, p.modelo, p.color, p.tipo
      FROM detalle_venta d 
      INNER JOIN producto p ON d.id_producto = p.codproducto 
-     WHERE d.id_venta = $id_venta");
+     WHERE d.id_venta = $id_venta
+     ORDER BY d.id ASC");
 
 // Obtener configuración del negocio
 $query_config_neg = mysqli_query($conexion, "SELECT * FROM configuracion LIMIT 1");

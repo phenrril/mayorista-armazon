@@ -100,6 +100,78 @@ function actualizarPanelCliente(idCliente) {
     });
 }
 
+function crearFilaVencimientoVenta(data = {}) {
+    const template = document.getElementById('tpl_vencimiento_venta');
+    const container = document.getElementById('vencimientos_venta_lista');
+    if (!template || !container || !template.content) {
+        return null;
+    }
+
+    const clone = document.importNode(template.content, true);
+    const row = clone.querySelector('.js-vencimiento-venta-row');
+    if (!row) {
+        return null;
+    }
+
+    const fechaInput = row.querySelector('.js-vencimiento-fecha');
+    const montoInput = row.querySelector('.js-vencimiento-monto');
+    const notaInput = row.querySelector('.js-vencimiento-nota');
+
+    if (fechaInput) {
+        fechaInput.value = data.fecha_vencimiento || '';
+    }
+    if (montoInput) {
+        montoInput.value = data.monto || '';
+    }
+    if (notaInput) {
+        notaInput.value = data.nota_interna || '';
+    }
+
+    container.appendChild(clone);
+    return container.lastElementChild;
+}
+
+function obtenerVencimientosVenta() {
+    const rows = document.querySelectorAll('.js-vencimiento-venta-row');
+    const vencimientos = [];
+
+    for (const row of rows) {
+        const fecha = String((row.querySelector('.js-vencimiento-fecha') || {}).value || '').trim();
+        const montoRaw = String((row.querySelector('.js-vencimiento-monto') || {}).value || '').trim();
+        const nota = String((row.querySelector('.js-vencimiento-nota') || {}).value || '').trim();
+
+        if (!fecha && !montoRaw && !nota) {
+            continue;
+        }
+
+        if (!fecha) {
+            return {
+                error: 'Cada vencimiento interno debe tener una fecha.'
+            };
+        }
+
+        if (montoRaw !== '') {
+            const monto = parseFloat(montoRaw);
+            if (isNaN(monto) || monto < 0) {
+                return {
+                    error: 'Uno de los montos de vencimiento no es válido.'
+                };
+            }
+        }
+
+        vencimientos.push({
+            fecha_vencimiento: fecha,
+            monto: montoRaw,
+            nota_interna: nota
+        });
+    }
+
+    return {
+        error: '',
+        vencimientos: vencimientos
+    };
+}
+
 function obtenerTotalVenta() {
     let total = 0;
     $('#detalle_venta tr').each(function () {
@@ -764,6 +836,17 @@ $(function () {
     });
     $('#btn_recalcular').on('click', calcularVenta);
 
+    $('#btn_agregar_vencimiento').on('click', function () {
+        crearFilaVencimientoVenta();
+    });
+
+    $(document).on('click', '.js-quitar-vencimiento', function () {
+        const row = this.closest('.js-vencimiento-venta-row');
+        if (row) {
+            row.remove();
+        }
+    });
+
     function actualizarCamposCheque() {
         const esCheque = $('input[name="pago"]:checked').val() === '5';
         $('#cheque_fields').toggle(esCheque);
@@ -841,6 +924,16 @@ $(function () {
             return;
         }
 
+        const vencimientos = obtenerVencimientosVenta();
+        if (vencimientos.error) {
+            showCenteredAlert({
+                icon: 'warning',
+                title: vencimientos.error,
+                timer: 2600
+            });
+            return;
+        }
+
         ventaEnProceso = true;
         btnGenerar.prop('disabled', true).addClass('disabled');
 
@@ -856,6 +949,7 @@ $(function () {
                 metodo_pago: metodoPago,
                 modo_despacho: $('#modo_despacho').val(),
                 observacion: $('#observacion_venta').val(),
+                vencimientos_venta: JSON.stringify(vencimientos.vencimientos || []),
                 fecha_venta: fechaVenta,
                 venta_token: $('#venta_token').val(),
                 cheque_plazo_dias: $('#cheque_plazo_dias').val(),

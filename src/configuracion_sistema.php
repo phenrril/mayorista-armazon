@@ -26,6 +26,8 @@ $migracion_remito_pendiente = !mayorista_schema_remito_productos_listo($conexion
 $migracion_remito_token = $migracion_remito_pendiente ? mayorista_generar_token_migracion_remito() : '';
 $migracion_finanzas_pendiente = !mayorista_schema_finanzas_operativas_listo($conexion);
 $migracion_finanzas_token = $migracion_finanzas_pendiente ? mayorista_generar_token_migracion_finanzas() : '';
+$migracion_vencimientos_venta_pendiente = !mayorista_schema_vencimientos_venta_listo($conexion);
+$migracion_vencimientos_venta_token = $migracion_vencimientos_venta_pendiente ? mayorista_generar_token_migracion_vencimientos_venta() : '';
 $importacion_productos_pendiente = !mayorista_importacion_productos_fue_ejecutada($conexion);
 $importacion_productos_token = $importacion_productos_pendiente ? mayorista_generar_token_importacion_productos() : '';
 $importacion_clientes_pendiente = !mayorista_importacion_clientes_fue_ejecutada($conexion);
@@ -93,6 +95,33 @@ $reset_cc_masivo_token = $reset_cc_masivo_pendiente ? mayorista_generar_token_re
                     </button>
                     <small class="text-muted d-block mt-3">
                         El botón se ocultará automáticamente cuando la estructura financiera quede aplicada correctamente.
+                    </small>
+                </div>
+            </div>
+            <?php } ?>
+
+            <?php if ($migracion_vencimientos_venta_pendiente) { ?>
+            <div class="card card-modern mb-4" id="cardMigracionVencimientosVenta">
+                <div class="card-header-modern card-header-modern-warning">
+                    <i class="fas fa-calendar-alt mr-2"></i> Migración Vencimientos Internos de Venta
+                </div>
+                <div class="card-body card-body-modern">
+                    <p class="mb-3">
+                        <i class="fas fa-info-circle text-info mr-2"></i>
+                        Ejecutá una sola vez esta migración para habilitar vencimientos internos por venta, notas privadas y recordatorios anticipados.
+                    </p>
+                    <div id="resultado-migracion-vencimientos-venta" class="mb-3"></div>
+                    <button
+                        type="button"
+                        class="btn btn-modern btn-modern-warning"
+                        id="btnMigracionVencimientosVenta"
+                        data-endpoint="ejecutar_migracion_vencimientos_venta.php"
+                        data-token="<?php echo htmlspecialchars($migracion_vencimientos_venta_token, ENT_QUOTES, 'UTF-8'); ?>"
+                    >
+                        <i class="fas fa-play mr-2"></i> Ejecutar migración única
+                    </button>
+                    <small class="text-muted d-block mt-3">
+                        El botón se ocultará automáticamente cuando la tabla quede creada correctamente.
                     </small>
                 </div>
             </div>
@@ -315,6 +344,7 @@ window.addEventListener('load', function() {
 
     initMigracionRemito();
     initMigracionFinanzas();
+    initMigracionVencimientosVenta();
     initImportacionProductos();
     initImportacionClientes();
     initResetCuentasCorrientes();
@@ -759,6 +789,100 @@ function ejecutarMigracionFinanzas($button) {
                 ? xhr.responseJSON.message
                 : 'Error al ejecutar la migración financiera.';
             $('#resultado-migracion-finanzas').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+            $button.prop('disabled', false).html(htmlOriginal);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    });
+}
+
+function initMigracionVencimientosVenta() {
+    const $button = $('#btnMigracionVencimientosVenta');
+    if ($button.length === 0) {
+        return;
+    }
+
+    $button.on('click', function() {
+        Swal.fire({
+            title: '¿Ejecutar migración de vencimientos internos?',
+            html: `
+                <div class="text-left">
+                    <p>Esto habilitará:</p>
+                    <ul>
+                        <li>Vencimientos internos por venta</li>
+                        <li>Notas privadas por cada vencimiento</li>
+                        <li>Recordatorios 1 o 2 días antes</li>
+                        <li>Edición posterior desde la venta</li>
+                    </ul>
+                    <p class="mb-0 text-warning"><strong>La acción es de un solo uso desde esta UI.</strong></p>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-play mr-2"></i>Ejecutar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#c48b2f',
+            cancelButtonColor: '#6c757d',
+            allowOutsideClick: false
+        }).then((result) => {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            ejecutarMigracionVencimientosVenta($button);
+        });
+    });
+}
+
+function ejecutarMigracionVencimientosVenta($button) {
+    const endpoint = $button.data('endpoint');
+    const token = $button.data('token');
+    const htmlOriginal = '<i class="fas fa-play mr-2"></i> Ejecutar migración única';
+
+    $button.prop('disabled', true);
+    $button.html('<i class="fas fa-spinner fa-spin mr-2"></i> Ejecutando...');
+    $('#resultado-migracion-vencimientos-venta').html('');
+
+    $.ajax({
+        url: endpoint,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            csrf_token: token
+        },
+        success: function(response) {
+            if (!response || !response.success) {
+                const message = response && response.message ? response.message : 'No se pudo ejecutar la migración de vencimientos internos.';
+                $('#resultado-migracion-vencimientos-venta').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
+                $button.prop('disabled', false).html(htmlOriginal);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Migración no completada',
+                    text: message,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            $('#resultado-migracion-vencimientos-venta').html('<div class="alert alert-success" role="alert">' + response.message + '</div>');
+            $('#cardMigracionVencimientosVenta').slideUp(250);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Migración aplicada',
+                text: response.message,
+                confirmButtonColor: '#198754'
+            });
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Error al ejecutar la migración de vencimientos internos.';
+            $('#resultado-migracion-vencimientos-venta').html('<div class="alert alert-danger" role="alert">' + message + '</div>');
             $button.prop('disabled', false).html(htmlOriginal);
             Swal.fire({
                 icon: 'error',
