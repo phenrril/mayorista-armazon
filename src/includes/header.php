@@ -108,8 +108,6 @@
                             <strong>Recordatorios pendientes:</strong>
                             Tenés <?php echo count($alertasFinancierasHeader); ?> vencimiento<?php echo count($alertasFinancierasHeader) === 1 ? '' : 's'; ?> para revisar hoy o en los próximos 2 días.
                         </div>
-                        <a class="btn btn-sm btn-dark font-weight-bold shadow-sm mt-2 mt-md-0 px-3" href="reporte.php#vencimientos-financieros">
-                            <i class="fas fa-exclamation-circle mr-1"></i> Ver vencimientos
-                        </a>
+                        <a class="btn btn-sm btn-outline-dark mt-2 mt-md-0" href="reporte.php#vencimientos-financieros">Ver vencimientos</a>
                     </div>
                     <?php } ?>

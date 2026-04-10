@@ -41,14 +41,12 @@ $hasMayorista = mayorista_column_exists($conexion, 'producto', 'precio_mayorista
 $hasVencimientosVenta = mayorista_schema_vencimientos_venta_listo($conexion);
 $alert = '';
 $fechaVentaActual = !empty($venta['fecha']) ? date('Y-m-d', strtotime($venta['fecha'])) : date('Y-m-d');
-$horaVentaActual = !empty($venta['fecha']) ? date('H:i', strtotime($venta['fecha'])) : date('H:i');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $productos = $_POST['id_producto'] ?? array();
     $cantidades = $_POST['cantidad'] ?? array();
     $precios = $_POST['precio'] ?? array();
     $fechaVentaInput = trim((string) ($_POST['fecha_venta'] ?? $fechaVentaActual));
-    $horaVentaInput = trim((string) ($_POST['hora_venta'] ?? $horaVentaActual));
     $abona = round((float) ($venta['abona'] ?? 0), 2);
     $metodoPago = (int) ($venta['id_metodo'] ?? 1);
     $idCliente = (int) ($venta['id_cliente'] ?? 0);
@@ -57,7 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $vencimientoMontos = $_POST['vencimiento_monto'] ?? array();
     $vencimientoNotas = $_POST['vencimiento_nota'] ?? array();
     $vencimientoEstados = $_POST['vencimiento_estado'] ?? array();
-    $fechaVentaSql = mayorista_fecha_hora_desde_iso($fechaVentaInput, $horaVentaInput);
+    $horaVentaOriginal = !empty($venta['fecha']) ? date('H:i:s', strtotime($venta['fecha'])) : date('H:i:s');
+    $fechaVentaSql = mayorista_fecha_hora_desde_iso($fechaVentaInput, $horaVentaOriginal);
     $vencimientosVenta = array();
 
     if ($hasVencimientosVenta) {
@@ -92,8 +91,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!mayorista_fecha_iso_valida($fechaVentaInput)) {
         $alert = '<div class="alert alert-danger">La fecha de la nota no es válida.</div>';
-    } elseif (!preg_match('/^\d{2}:\d{2}$/', $horaVentaInput)) {
-        $alert = '<div class="alert alert-danger">La hora de la nota no es válida.</div>';
     } elseif ($fechaVentaInput > date('Y-m-d')) {
         $alert = '<div class="alert alert-danger">La fecha de la nota no puede ser futura.</div>';
     } else {
@@ -308,7 +305,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         );
                         $venta = $ventaQuery ? mysqli_fetch_assoc($ventaQuery) : $venta;
                         $fechaVentaActual = !empty($venta['fecha']) ? date('Y-m-d', strtotime($venta['fecha'])) : $fechaVentaInput;
-                        $horaVentaActual = !empty($venta['fecha']) ? date('H:i', strtotime($venta['fecha'])) : $horaVentaInput;
                     } catch (Exception $e) {
                         mysqli_rollback($conexion);
                         $alert = '<div class="alert alert-danger">' . htmlspecialchars($e->getMessage()) . '</div>';
@@ -318,7 +314,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 $fechaVentaActual = !empty($venta['fecha']) ? date('Y-m-d', strtotime($venta['fecha'])) : $fechaVentaActual;
-$horaVentaActual = !empty($venta['fecha']) ? date('H:i', strtotime($venta['fecha'])) : $horaVentaActual;
 
 $detalleVenta = mysqli_query(
     $conexion,
@@ -361,17 +356,6 @@ include_once "includes/header.php";
                                 max="<?php echo date('Y-m-d'); ?>"
                                 required>
                             <small class="form-text text-muted">Solo se puede editar mientras la venta no tenga factura aprobada en AFIP.</small>
-                        </div>
-                        <div class="form-group col-md-3">
-                            <label for="hora_venta">Hora de la nota</label>
-                            <input
-                                type="time"
-                                id="hora_venta"
-                                name="hora_venta"
-                                class="form-control"
-                                value="<?php echo htmlspecialchars($horaVentaActual); ?>"
-                                step="60"
-                                required>
                         </div>
                     </div>
                     <?php if ($hasVencimientosVenta) { ?>
