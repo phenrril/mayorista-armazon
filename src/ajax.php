@@ -538,6 +538,7 @@ if (isset($_POST['action'])) {
 if (isset($_POST['procesarVenta'])) {
     $id_cliente = (int) $_POST['id'];
     $abona = round((float) $_POST['abona'], 2);
+    $descuentoPorcentaje = round((float) ($_POST['descuento_porcentaje'] ?? 0), 2);
     $ventaToken = trim((string) ($_POST['venta_token'] ?? ''));
     $tipoVenta = mayorista_tipo_venta_valido($_POST['tipo_venta'] ?? 'minorista');
     $metodo_pago = (int) ($_POST['metodo_pago'] ?? 1);
@@ -574,6 +575,12 @@ if (isset($_POST['procesarVenta'])) {
     if ($abona < 0) {
         ajax_json(array('mensaje' => 'error', 'detalle' => 'El importe abonado no puede ser negativo.'));
     }
+    if ($descuentoPorcentaje < 0 || $descuentoPorcentaje > 100) {
+        ajax_json(array('mensaje' => 'error', 'detalle' => 'El descuento debe estar entre 0 y 100.'));
+    }
+    if ($descuentoPorcentaje > 0 && !mayorista_schema_descuentos_venta_listo($conexion)) {
+        ajax_json(array('mensaje' => 'error', 'detalle' => 'Primero tenés que aplicar la migración de descuentos desde configuración.'));
+    }
 
     if ($metodo_pago === 5 && $abona > 0) {
         if (!mayorista_schema_finanzas_operativas_listo($conexion)) {
@@ -608,7 +615,7 @@ if (isset($_POST['procesarVenta'])) {
 
     $items = array();
     $vencimientosVenta = array();
-    $total = 0;
+    $subtotalBruto = 0;
     $precioModificado = 0;
 
     if ($vencimientosVentaRaw !== '') {
@@ -623,10 +630,12 @@ if (isset($_POST['procesarVenta'])) {
 
     while ($row = mysqli_fetch_assoc($detalle)) {
         $items[] = $row;
-        $total += (float) $row['total'];
+        $subtotalBruto += (float) $row['total'];
     }
 
-    $total = round($total, 2);
+    $subtotalBruto = round($subtotalBruto, 2);
+    $descuentoImporte = round($subtotalBruto * ($descuentoPorcentaje / 100), 2);
+    $total = round($subtotalBruto - $descuentoImporte, 2);
     if ($abona > $total) {
         ajax_json(array('mensaje' => 'error', 'detalle' => 'El importe abonado no puede superar el total de la venta.'));
     }
@@ -659,6 +668,10 @@ if (isset($_POST['procesarVenta'])) {
         if (mayorista_column_exists($conexion, 'ventas', 'saldo_cc_cliente')) {
             $camposVenta[] = 'saldo_cc_cliente';
             $valoresVenta[] = 0;
+        }
+        if (mayorista_column_exists($conexion, 'ventas', 'descuento_porcentaje')) {
+            $camposVenta[] = 'descuento_porcentaje';
+            $valoresVenta[] = $descuentoPorcentaje;
         }
 
         $insertVenta = mysqli_query(
@@ -816,7 +829,10 @@ if (isset($_POST['procesarVenta'])) {
                 'Venta #' . $idVenta . ($observacion !== '' ? ' - ' . $observacion : ''),
                 $id_user,
                 $idVenta,
-                $fecha
+                $fecha,
+                $metodo_pago,
+                'venta',
+                $idVenta
             );
         } else {
             $cuenta = mayorista_obtener_cuenta_corriente($conexion, $id_cliente);
@@ -852,6 +868,9 @@ if (isset($_POST['procesarVenta'])) {
         ajax_json(array(
             'id_cliente' => $id_cliente,
             'id_venta' => $idVenta,
+            'subtotal_bruto' => $subtotalBruto,
+            'descuento_porcentaje' => $descuentoPorcentaje,
+            'descuento_importe' => $descuentoImporte,
             'total' => $total,
             'abona' => $abona,
             'monto_cc' => $montoCc,

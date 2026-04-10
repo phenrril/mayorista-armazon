@@ -24,11 +24,21 @@ if (!$cliente) {
 }
 
 $cuenta = mayorista_obtener_cuenta_corriente($conexion, $idCliente);
+$columnaMetodoLabel = mayorista_column_exists($conexion, 'metodos', 'descripcion')
+    ? 'descripcion'
+    : (mayorista_column_exists($conexion, 'metodos', 'metodo') ? 'metodo' : '');
+$joinMetodos = (mayorista_schema_movimientos_cc_metodos_listo($conexion) && $columnaMetodoLabel !== '' && mayorista_table_exists($conexion, 'metodos'))
+    ? " LEFT JOIN metodos mt ON m.id_metodo = mt.id "
+    : '';
+$selectMetodo = mayorista_schema_movimientos_cc_metodos_listo($conexion)
+    ? ($joinMetodos !== '' ? ", mt.$columnaMetodoLabel AS metodo_nombre" : ", NULL AS metodo_nombre")
+    : ", NULL AS metodo_nombre";
 $movimientos = mysqli_query(
     $conexion,
-    "SELECT m.*, u.nombre AS usuario_nombre
+    "SELECT m.*, u.nombre AS usuario_nombre $selectMetodo
      FROM movimientos_cc m
      LEFT JOIN usuario u ON m.id_usuario = u.idusuario
+     $joinMetodos
      WHERE m.id_cuenta_corriente = " . (int) $cuenta['id'] . "
      ORDER BY m.fecha DESC"
 );
@@ -68,18 +78,21 @@ $pdf->SetFont('Arial', 'B', 9);
 $pdf->SetFillColor(226, 232, 240);
 $pdf->Cell(34, 8, 'Fecha', 1, 0, 'C', true);
 $pdf->Cell(22, 8, 'Tipo', 1, 0, 'C', true);
-$pdf->Cell(80, 8, utf8_decode('Descripcion'), 1, 0, 'L', true);
-$pdf->Cell(25, 8, 'Monto', 1, 0, 'R', true);
-$pdf->Cell(25, 8, 'Usuario', 1, 1, 'L', true);
+$pdf->Cell(61, 8, utf8_decode('Descripcion'), 1, 0, 'L', true);
+$pdf->Cell(26, 8, 'Modo pago', 1, 0, 'L', true);
+$pdf->Cell(24, 8, 'Monto', 1, 0, 'R', true);
+$pdf->Cell(19, 8, 'Usuario', 1, 1, 'L', true);
 
 $pdf->SetFont('Arial', '', 8);
 if ($movimientos && mysqli_num_rows($movimientos) > 0) {
     while ($mov = mysqli_fetch_assoc($movimientos)) {
         $pdf->Cell(34, 8, date('d/m/Y H:i', strtotime($mov['fecha'])), 1, 0, 'C');
         $pdf->Cell(22, 8, ucfirst($mov['tipo']), 1, 0, 'C');
-        $pdf->Cell(80, 8, utf8_decode(substr($mov['descripcion'], 0, 55)), 1, 0, 'L');
-        $pdf->Cell(25, 8, cc_money($mov['monto']), 1, 0, 'R');
-        $pdf->Cell(25, 8, utf8_decode(substr($mov['usuario_nombre'] ?: '-', 0, 18)), 1, 1, 'L');
+        $metodoNombre = $mov['metodo_nombre'] ?: mayorista_metodo_pago_etiqueta($conexion, (int) ($mov['id_metodo'] ?? 0));
+        $pdf->Cell(61, 8, utf8_decode(substr($mov['descripcion'], 0, 40)), 1, 0, 'L');
+        $pdf->Cell(26, 8, utf8_decode(substr($metodoNombre ?: '-', 0, 16)), 1, 0, 'L');
+        $pdf->Cell(24, 8, cc_money($mov['monto']), 1, 0, 'R');
+        $pdf->Cell(19, 8, utf8_decode(substr($mov['usuario_nombre'] ?: '-', 0, 12)), 1, 1, 'L');
     }
 } else {
     $pdf->Cell(186, 10, utf8_decode('No hay movimientos registrados para este cliente.'), 1, 1, 'C');

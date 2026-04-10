@@ -59,6 +59,9 @@ if (mayorista_column_exists($conexion, 'ventas', 'monto_cc')) {
 if (mayorista_column_exists($conexion, 'ventas', 'saldo_cc_cliente')) {
     $camposVenta[] = 'v.saldo_cc_cliente';
 }
+if (mayorista_column_exists($conexion, 'ventas', 'descuento_porcentaje')) {
+    $camposVenta[] = 'v.descuento_porcentaje';
+}
 
 $venta = mysqli_query(
     $conexion,
@@ -285,13 +288,16 @@ $pdf->SetAutoPageBreak(false);
 
 $brandLogoPath = realpath(__DIR__ . '/../../assets/logo-pdf-clean-white.png');
 $items = array();
-$totalVenta = 0;
+$subtotalVenta = 0;
 while ($row = mysqli_fetch_assoc($detalle)) {
     $items[] = $row;
-    $totalVenta += ((float) $row['cantidad']) * ((float) $row['precio']);
+    $subtotalVenta += ((float) $row['cantidad']) * ((float) $row['precio']);
 }
 
-$totalVenta = round($totalVenta, 2);
+$subtotalVenta = round($subtotalVenta, 2);
+$descuentoPorcentajeVenta = round((float) ($ventaData['descuento_porcentaje'] ?? 0), 2);
+$descuentoImporteVenta = round($subtotalVenta * ($descuentoPorcentajeVenta / 100), 2);
+$totalVenta = round((float) ($ventaData['total'] ?? $subtotalVenta), 2);
 $totalCobrado = round((float) ($ventaData['abona'] ?? 0), 2);
 $totalCc = round(isset($ventaData['monto_cc']) ? (float) $ventaData['monto_cc'] : (float) ($ventaData['resto'] ?? 0), 2);
 $columnas = array(12, 28, 38, 20, 36, 26, 26);
@@ -328,18 +334,30 @@ foreach ($chunks as $pageIndex => $pageItems) {
         $pdf->SetTextColor(55, 63, 73);
         $pdf->SetFont('Arial', '', 10.5);
         $pdf->SetXY(116, $summaryY);
+        $pdf->Cell(42, 6, 'Subtotal', 0, 0, 'R');
+        $pdf->SetFont('Arial', 'B', 10.5);
+        $pdf->Cell(40, 6, money_pdf($subtotalVenta), 0, 1, 'R');
+
+        $pdf->SetFont('Arial', '', 10.5);
+        $pdf->SetXY(116, $summaryY + 7);
+        $pdf->Cell(42, 6, utf8_decode('Descuento (' . number_format($descuentoPorcentajeVenta, 2, ',', '.') . '%)'), 0, 0, 'R');
+        $pdf->SetFont('Arial', 'B', 10.5);
+        $pdf->Cell(40, 6, money_pdf($descuentoImporteVenta), 0, 1, 'R');
+
+        $pdf->SetFont('Arial', '', 10.5);
+        $pdf->SetXY(116, $summaryY + 14);
         $pdf->Cell(42, 6, 'Total venta', 0, 0, 'R');
         $pdf->SetFont('Arial', 'B', 10.5);
         $pdf->Cell(40, 6, money_pdf($totalVenta), 0, 1, 'R');
 
         $pdf->SetFont('Arial', '', 10.5);
-        $pdf->SetXY(116, $summaryY + 7);
+        $pdf->SetXY(116, $summaryY + 21);
         $pdf->Cell(42, 6, 'Total cobrado', 0, 0, 'R');
         $pdf->SetFont('Arial', 'B', 10.5);
         $pdf->Cell(40, 6, money_pdf($totalCobrado), 0, 1, 'R');
 
         $pdf->SetFont('Arial', '', 10.5);
-        $pdf->SetXY(108, $summaryY + 14);
+        $pdf->SetXY(108, $summaryY + 28);
         $pdf->Cell(50, 6, 'Total a cobrar (CC)', 0, 0, 'R');
         $pdf->SetFont('Arial', 'B', 10.5);
         $pdf->Cell(40, 6, money_pdf($totalCc), 0, 1, 'R');

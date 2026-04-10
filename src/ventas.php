@@ -32,6 +32,7 @@ $hasClienteCodigoPostal = mayorista_column_exists($conexion, 'cliente', 'codigo_
 $hasClienteProvincia = mayorista_column_exists($conexion, 'cliente', 'provincia');
 $hasModoDespacho = mayorista_column_exists($conexion, 'ventas', 'modo_despacho');
 $hasVencimientosVenta = mayorista_schema_vencimientos_venta_listo($conexion);
+$hasDescuentoVenta = mayorista_schema_descuentos_venta_listo($conexion);
 $modosDespacho = mayorista_modos_despacho();
 $ventaToken = mayorista_generar_token_venta();
 $schemaReady = mayorista_column_exists($conexion, 'producto', 'precio_mayorista')
@@ -61,6 +62,11 @@ include_once "includes/header.php";
     <?php if (!mayorista_schema_remito_productos_listo($conexion)) { ?>
         <div class="alert alert-warning">
             Ejecutá la migración nueva desde configuración para habilitar clientes completos, modo de despacho y el remito actualizado.
+        </div>
+    <?php } ?>
+    <?php if (!$hasDescuentoVenta) { ?>
+        <div class="alert alert-warning">
+            Ejecutá la migración de descuentos desde configuración para poder guardar descuentos porcentuales en ventas.
         </div>
     <?php } ?>
 
@@ -125,7 +131,7 @@ include_once "includes/header.php";
                 <div class="col-lg-4 col-md-6">
                     <div class="form-group mb-0">
                         <label>Fecha de venta</label>
-                        <input type="date" id="fecha_venta" class="form-control form-control-modern" value="<?php echo date('Y-m-d'); ?>" max="<?php echo date('Y-m-d'); ?>">
+                        <input type="date" id="fecha_venta" class="form-control form-control-modern" value="<?php echo date('Y-m-d'); ?>">
                         <small class="form-text text-muted">Se permiten ventas con fecha pasada, pero no futura.</small>
                     </div>
                 </div>
@@ -208,13 +214,22 @@ include_once "includes/header.php";
                         <small class="text-muted">El importe abonado con cheque no se contará como ingreso hasta que se confirme su depósito.</small>
                     </div>
                     <div class="form-group">
+                        <label>Descuento (%)</label>
+                        <input type="number" class="form-control form-control-modern" id="descuento_porcentaje" step="0.01" min="0" max="100" value="0" <?php echo !$hasDescuentoVenta ? 'disabled' : ''; ?>>
+                        <small class="form-text text-muted">
+                            <?php echo $hasDescuentoVenta
+                                ? 'Se aplica sobre el subtotal total del pedido.'
+                                : 'Aplicá antes la migración de descuentos desde configuración.'; ?>
+                        </small>
+                    </div>
+                    <div class="form-group">
                         <label>Abona ahora</label>
-                        <input type="number" class="form-control form-control-modern" id="abona" step="0.01" min="0" value="0">
+                        <input type="number" class="form-control form-control-modern" id="abona" step="0.01" min="0" placeholder="">
                     </div>
                     <div class="form-group">
                         <label>Se carga a CC</label>
-                        <input type="number" class="form-control form-control-modern" id="monto_cc" step="0.01" min="0" value="0">
-                        <small class="form-text text-muted">Podés definir manualmente cuánto va a cuenta corriente. El precio unitario de cada item se puede ajustar libremente hasta generar la venta.</small>
+                        <input type="number" class="form-control form-control-modern" id="monto_cc" step="0.01" min="0" placeholder="" readonly>
+                        <small class="form-text text-muted">El saldo a cuenta corriente se calcula automáticamente según lo que se cargue en "Abona ahora". El precio unitario de cada item se puede ajustar libremente hasta generar la venta.</small>
                     </div>
                     <div class="form-group mb-0">
                         <label>Observación interna</label>

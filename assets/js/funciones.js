@@ -173,20 +173,46 @@ function obtenerVencimientosVenta() {
 }
 
 function obtenerTotalVenta() {
-    let total = 0;
+    let subtotalGeneral = 0;
     $('#detalle_venta tr').each(function () {
-        const subtotal = parseFloat($(this).find('.subtotal-item').data('subtotal'));
-        if (!isNaN(subtotal)) {
-            total += subtotal;
+        const subtotalItem = parseFloat($(this).find('.subtotal-item').data('subtotal'));
+        if (!isNaN(subtotalItem)) {
+            subtotalGeneral += subtotalItem;
         }
     });
 
-    return total;
+    return subtotalGeneral;
 }
 
-function actualizarResumenCobro(total, abona, montoCc) {
-    $('#abona').val(Number(abona || 0).toFixed(2));
-    $('#monto_cc').val(Number(montoCc || 0).toFixed(2));
+function obtenerDescuentoPorcentajeVenta() {
+    let descuento = parseFloat($('#descuento_porcentaje').val());
+    if (isNaN(descuento) || descuento < 0) {
+        descuento = 0;
+    }
+    if (descuento > 100) {
+        descuento = 100;
+    }
+    return descuento;
+}
+
+function formatearInputMoneda(valor) {
+    return Number(valor || 0).toFixed(2);
+}
+
+function actualizarResumenCobro(subtotal, descuentoImporte, total, abona, montoCc, opciones = {}) {
+    const abonaInput = $('#abona');
+    const montoCcInput = $('#monto_cc');
+    const mantenerAbona = !!opciones.mantenerAbona;
+    const limpiarAbona = !!opciones.limpiarAbona;
+    const limpiarMontoCc = !!opciones.limpiarMontoCc;
+
+    if (limpiarAbona) {
+        abonaInput.val('');
+    } else if (!mantenerAbona) {
+        abonaInput.val(formatearInputMoneda(abona));
+    }
+
+    montoCcInput.val(limpiarMontoCc ? '' : formatearInputMoneda(montoCc));
     $('#total-amount').text(formatCurrency(total));
     $('#total_tabla').text(formatCurrency(total));
 
@@ -196,32 +222,34 @@ function actualizarResumenCobro(total, abona, montoCc) {
 }
 
 function calcularVenta(origen = 'abona') {
-    const total = obtenerTotalVenta();
+    const subtotal = obtenerTotalVenta();
+    const descuentoPorcentaje = obtenerDescuentoPorcentajeVenta();
+    const descuentoImporte = subtotal * descuentoPorcentaje / 100;
+    const total = Math.max(0, subtotal - descuentoImporte);
 
     const abonaInput = $('#abona');
-    const montoCcInput = $('#monto_cc');
-    let abona = parseFloat(abonaInput.val());
-    let montoCc = parseFloat(montoCcInput.val());
+    const valorAbona = (abonaInput.val() || '').trim();
 
-    if (origen === 'cc') {
-        if (isNaN(montoCc) || montoCc < 0) {
-            montoCc = 0;
-        }
-        if (montoCc > total) {
-            montoCc = total;
-        }
-        abona = Math.max(0, total - montoCc);
-    } else {
-        if (isNaN(abona) || abona < 0) {
-            abona = 0;
-        }
-        if (abona > total) {
-            abona = total;
-        }
-        montoCc = Math.max(0, total - abona);
+    if (valorAbona === '') {
+        actualizarResumenCobro(subtotal, descuentoImporte, total, 0, 0, {
+            limpiarAbona: true,
+            limpiarMontoCc: true
+        });
+        return;
     }
 
-    actualizarResumenCobro(total, abona, montoCc);
+    let abona = parseFloat(valorAbona);
+    if (isNaN(abona) || abona < 0) {
+        abona = 0;
+    }
+    if (abona > total) {
+        abona = total;
+    }
+
+    const montoCc = Math.max(0, total - abona);
+    actualizarResumenCobro(subtotal, descuentoImporte, total, abona, montoCc, {
+        mantenerAbona: origen === 'abona'
+    });
 }
 
 function listar() {
@@ -831,8 +859,46 @@ $(function () {
     $('#abona').on('input', function () {
         calcularVenta('abona');
     });
-    $('#monto_cc').on('input', function () {
-        calcularVenta('cc');
+    $('#descuento_porcentaje').on('input', function () {
+        calcularVenta('descuento');
+    });
+    $('#abona').on('blur', function () {
+        if (this.value.trim() === '') {
+            calcularVenta('abona');
+            return;
+        }
+
+        const subtotal = obtenerTotalVenta();
+        const descuento = obtenerDescuentoPorcentajeVenta();
+        const total = Math.max(0, subtotal - (subtotal * descuento / 100));
+        let abona = parseFloat(this.value);
+        if (isNaN(abona) || abona < 0) {
+            abona = 0;
+        }
+        if (abona > total) {
+            abona = total;
+        }
+
+        this.value = formatearInputMoneda(abona);
+        $('#monto_cc').val(formatearInputMoneda(Math.max(0, total - abona)));
+    });
+    $('#descuento_porcentaje').on('blur', function () {
+        if (this.value.trim() === '') {
+            this.value = '0.00';
+            calcularVenta('descuento');
+            return;
+        }
+
+        let descuento = parseFloat(this.value);
+        if (isNaN(descuento) || descuento < 0) {
+            descuento = 0;
+        }
+        if (descuento > 100) {
+            descuento = 100;
+        }
+
+        this.value = formatearInputMoneda(descuento);
+        calcularVenta('descuento');
     });
     $('#btn_recalcular').on('click', calcularVenta);
 
@@ -866,21 +932,45 @@ $(function () {
 
     $('input[name="pago"]').on('change', actualizarCamposCheque);
     $('#cheque_plazo_dias, #cheque_fecha_base').on('change', actualizarCamposCheque);
-    $('#fecha_venta').on('change', function () {
-        const fechaVenta = $(this).val();
+    function validarFechaVenta($input, opciones = {}) {
+        const fechaVenta = $input.val();
         const hoy = new Date().toISOString().slice(0, 10);
+
+        if (!fechaVenta) {
+            if ($('#cheque_fecha_base').length && opciones.actualizarCheque !== false) {
+                $('#cheque_fecha_base').val(hoy);
+                actualizarCamposCheque();
+            }
+            return true;
+        }
+
         if (fechaVenta && fechaVenta > hoy) {
-            $(this).val(hoy);
+            $input.val(hoy);
             showCenteredAlert({
                 icon: 'warning',
                 title: 'La fecha no puede ser futura',
                 timer: 2200
             });
-            return;
+            return false;
         }
 
-        if ($('#cheque_fecha_base').length) {
+        if ($('#cheque_fecha_base').length && opciones.actualizarCheque !== false) {
             $('#cheque_fecha_base').val(fechaVenta || hoy);
+            actualizarCamposCheque();
+        }
+
+        return true;
+    }
+
+    $('#fecha_venta').on('blur', function () {
+        validarFechaVenta($(this));
+    });
+
+    $('#fecha_venta').on('change', function () {
+        const fechaVenta = $(this).val();
+        const hoy = new Date().toISOString().slice(0, 10);
+        if ($('#cheque_fecha_base').length && fechaVenta && fechaVenta <= hoy) {
+            $('#cheque_fecha_base').val(fechaVenta);
             actualizarCamposCheque();
         }
     });
@@ -946,6 +1036,7 @@ $(function () {
                 procesarVenta: true,
                 id: idCliente,
                 abona: abona,
+                descuento_porcentaje: parseFloat($('#descuento_porcentaje').val()) || 0,
                 tipo_venta: $('#tipo_venta').val(),
                 metodo_pago: metodoPago,
                 modo_despacho: $('#modo_despacho').val(),
