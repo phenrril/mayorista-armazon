@@ -543,6 +543,7 @@ if (isset($_POST['procesarVenta'])) {
     $metodo_pago = (int) ($_POST['metodo_pago'] ?? 1);
     $modoDespacho = trim($_POST['modo_despacho'] ?? 'A convenir');
     $observacion = mysqli_real_escape_string($conexion, trim($_POST['observacion'] ?? ''));
+    $vencimientosVentaRaw = trim((string) ($_POST['vencimientos_venta'] ?? '[]'));
     $fechaVentaInput = trim((string) ($_POST['fecha_venta'] ?? date('Y-m-d')));
     $chequePlazoDias = (int) ($_POST['cheque_plazo_dias'] ?? 30);
     $chequeFechaDeposito = trim((string) ($_POST['cheque_fecha_deposito'] ?? ''));
@@ -602,17 +603,24 @@ if (isset($_POST['procesarVenta'])) {
     }
 
     $items = array();
+    $vencimientosVenta = array();
     $total = 0;
     $precioModificado = 0;
+
+    if ($vencimientosVentaRaw !== '') {
+        $vencimientosVenta = json_decode($vencimientosVentaRaw, true);
+        if (!is_array($vencimientosVenta)) {
+            ajax_json(array('mensaje' => 'error', 'detalle' => 'No se pudieron interpretar los vencimientos internos.'));
+        }
+    }
+    if (!empty($vencimientosVenta) && !mayorista_schema_vencimientos_venta_listo($conexion)) {
+        ajax_json(array('mensaje' => 'error', 'detalle' => 'Primero tenés que aplicar la migración de vencimientos internos desde configuración.'));
+    }
 
     while ($row = mysqli_fetch_assoc($detalle)) {
         $items[] = $row;
         $total += (float) $row['total'];
     }
-
-    usort($items, function ($a, $b) {
-        return ((int) $a['id_producto']) <=> ((int) $b['id_producto']);
-    });
 
     $total = round($total, 2);
     if ($abona > $total) {
@@ -827,6 +835,10 @@ if (isset($_POST['procesarVenta'])) {
             if (!empty($updates)) {
                 mysqli_query($conexion, "UPDATE ventas SET " . implode(', ', $updates) . " WHERE id = $idVenta");
             }
+        }
+
+        if (mayorista_schema_vencimientos_venta_listo($conexion)) {
+            mayorista_guardar_vencimientos_venta($conexion, $idVenta, $vencimientosVenta, $id_user);
         }
 
         mayorista_invalidar_token_venta();

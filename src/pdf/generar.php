@@ -227,6 +227,49 @@ function remito_dibujar_fila($pdf, $y, $widths, $rowHeight, $fill, $item = null)
     $pdf->Cell($widths[6], $rowHeight, utf8_decode($importe), 1, 1, 'R', true);
 }
 
+function remito_paginar_items($items, $maxRowsRegularPage, $maxRowsLastPage)
+{
+    $chunks = array();
+    $offset = 0;
+    $totalItems = count($items);
+
+    while ($offset < $totalItems) {
+        $remaining = $totalItems - $offset;
+
+        if ($remaining <= $maxRowsLastPage) {
+            $chunks[] = array_slice($items, $offset, $remaining);
+            break;
+        }
+
+        if ($remaining <= ($maxRowsRegularPage + $maxRowsLastPage)) {
+            $lastCount = min(
+                $maxRowsLastPage,
+                max(1, (int) floor(($remaining - 1) / 2))
+            );
+            $currentCount = $remaining - $lastCount;
+
+            if ($currentCount > $maxRowsRegularPage) {
+                $currentCount = $maxRowsRegularPage;
+                $lastCount = $remaining - $currentCount;
+            }
+
+            $chunks[] = array_slice($items, $offset, $currentCount);
+            $offset += $currentCount;
+            $chunks[] = array_slice($items, $offset, $lastCount);
+            break;
+        }
+
+        $chunks[] = array_slice($items, $offset, $maxRowsRegularPage);
+        $offset += $maxRowsRegularPage;
+    }
+
+    if (empty($chunks)) {
+        $chunks[] = array();
+    }
+
+    return $chunks;
+}
+
 $footerAssets = mayorista_pdf_footer_assets();
 
 $pdf = new MayoristaBrandedPdf('P', 'mm', 'A4');
@@ -256,22 +299,7 @@ $rowHeight = 6.6;
 $minRowsLastPage = 10;
 $maxRowsLastPage = 16;
 $maxRowsRegularPage = 21;
-$chunks = array();
-$totalItems = count($items);
-
-if ($totalItems <= $maxRowsLastPage) {
-    $chunks[] = $items;
-} else {
-    $itemsForRegularPages = array_slice($items, 0, $totalItems - $maxRowsLastPage);
-    if (!empty($itemsForRegularPages)) {
-        $chunks = array_chunk($itemsForRegularPages, $maxRowsRegularPage);
-    }
-    $chunks[] = array_slice($items, $totalItems - $maxRowsLastPage);
-}
-
-if (empty($chunks)) {
-    $chunks[] = array();
-}
+$chunks = remito_paginar_items($items, $maxRowsRegularPage, $maxRowsLastPage);
 
 $pdf->setFooterPagination(count($chunks));
 

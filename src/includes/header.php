@@ -106,7 +106,7 @@
                     <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap" role="alert">
                         <div>
                             <strong>Recordatorios pendientes:</strong>
-                            Tenés <?php echo count($alertasFinancierasHeader); ?> compromiso<?php echo count($alertasFinancierasHeader) === 1 ? '' : 's'; ?> para revisar hoy.
+                            Tenés <?php echo count($alertasFinancierasHeader); ?> vencimiento<?php echo count($alertasFinancierasHeader) === 1 ? '' : 's'; ?> para revisar hoy o en los próximos 2 días.
                         </div>
                         <a class="btn btn-sm btn-outline-dark mt-2 mt-md-0" href="reporte.php#vencimientos-financieros">Ver vencimientos</a>
                     </div>

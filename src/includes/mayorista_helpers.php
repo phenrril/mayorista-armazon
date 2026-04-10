@@ -312,6 +312,35 @@ function mayorista_invalidar_token_migracion_finanzas()
     }
 }
 
+function mayorista_generar_token_migracion_vencimientos_venta()
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return '';
+    }
+
+    if (empty($_SESSION['migracion_vencimientos_venta_token']) || !is_string($_SESSION['migracion_vencimientos_venta_token'])) {
+        $_SESSION['migracion_vencimientos_venta_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['migracion_vencimientos_venta_token'];
+}
+
+function mayorista_validar_token_migracion_vencimientos_venta($token)
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['migracion_vencimientos_venta_token'])) {
+        return false;
+    }
+
+    return hash_equals($_SESSION['migracion_vencimientos_venta_token'], (string) $token);
+}
+
+function mayorista_invalidar_token_migracion_vencimientos_venta()
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['migracion_vencimientos_venta_token']);
+    }
+}
+
 function mayorista_generar_token_importacion_productos()
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -551,6 +580,232 @@ function mayorista_schema_finanzas_operativas_listo($conexion)
         && mayorista_table_exists($conexion, 'compromisos_financieros_pagos')
         && mayorista_column_exists($conexion, 'ingresos', 'descripcion')
         && mayorista_column_exists($conexion, 'egresos', 'descripcion');
+}
+
+function mayorista_schema_vencimientos_venta_listo($conexion)
+{
+    return mayorista_table_exists($conexion, 'venta_vencimientos')
+        && mayorista_column_exists($conexion, 'venta_vencimientos', 'id_venta')
+        && mayorista_column_exists($conexion, 'venta_vencimientos', 'fecha_vencimiento')
+        && mayorista_column_exists($conexion, 'venta_vencimientos', 'monto')
+        && mayorista_column_exists($conexion, 'venta_vencimientos', 'nota_interna')
+        && mayorista_column_exists($conexion, 'venta_vencimientos', 'estado')
+        && mayorista_column_exists($conexion, 'venta_vencimientos', 'fecha_ultimo_recordatorio')
+        && mayorista_column_exists($conexion, 'venta_vencimientos', 'id_usuario');
+}
+
+function mayorista_estado_vencimiento_venta_valido($estado)
+{
+    return in_array((string) $estado, array('pendiente', 'cumplido', 'cancelado'), true);
+}
+
+function mayorista_obtener_vencimientos_venta($conexion, $idVenta)
+{
+    $idVenta = (int) $idVenta;
+    if ($idVenta <= 0 || !mayorista_schema_vencimientos_venta_listo($conexion)) {
+        return array();
+    }
+
+    $query = mysqli_query(
+        $conexion,
+        "SELECT *
+         FROM venta_vencimientos
+         WHERE id_venta = $idVenta
+         ORDER BY fecha_vencimiento ASC, id ASC"
+    );
+
+    if (!$query) {
+        return array();
+    }
+
+    $items = array();
+    while ($row = mysqli_fetch_assoc($query)) {
+        $items[] = $row;
+    }
+
+    return $items;
+}
+
+function mayorista_guardar_vencimientos_venta($conexion, $idVenta, array $vencimientos, $idUsuario)
+{
+    $idVenta = (int) $idVenta;
+    $idUsuario = (int) $idUsuario;
+    if ($idVenta <= 0 || $idUsuario <= 0) {
+        throw new InvalidArgumentException('No se pudo asociar los vencimientos a la venta.');
+    }
+    if (!mayorista_schema_vencimientos_venta_listo($conexion)) {
+        throw new RuntimeException('Primero aplicá la migración de vencimientos internos desde configuración.');
+    }
+
+    $existentes = array();
+    $queryExistentes = mysqli_query(
+        $conexion,
+        "SELECT id
+         FROM venta_vencimientos
+         WHERE id_venta = $idVenta"
+    );
+    if ($queryExistentes) {
+        while ($row = mysqli_fetch_assoc($queryExistentes)) {
+            $existentes[(int) $row['id']] = true;
+        }
+    }
+
+    $idsConservados = array();
+    foreach ($vencimientos as $vencimiento) {
+        $idVencimiento = (int) ($vencimiento['id'] ?? 0);
+        $fechaVencimiento = trim((string) ($vencimiento['fecha_vencimiento'] ?? ''));
+        $notaInterna = mysqli_real_escape_string($conexion, trim((string) ($vencimiento['nota_interna'] ?? '')));
+        $estado = trim((string) ($vencimiento['estado'] ?? 'pendiente'));
+        $montoRaw = trim((string) ($vencimiento['monto'] ?? ''));
+
+        if ($fechaVencimiento === '') {
+            throw new InvalidArgumentException('Cada vencimiento interno debe tener una fecha.');
+        }
+        if (!mayorista_fecha_iso_valida($fechaVencimiento)) {
+            throw new InvalidArgumentException('Una de las fechas de vencimiento internas no es válida.');
+        }
+        if (!mayorista_estado_vencimiento_venta_valido($estado)) {
+            $estado = 'pendiente';
+        }
+
+        $montoSql = 'NULL';
+        if ($montoRaw !== '') {
+            if (!is_numeric($montoRaw)) {
+                throw new InvalidArgumentException('Uno de los montos de vencimiento no es válido.');
+            }
+            $monto = round((float) $montoRaw, 2);
+            if ($monto < 0) {
+                throw new InvalidArgumentException('El monto de un vencimiento no puede ser negativo.');
+            }
+            $montoSql = (string) $monto;
+        }
+
+        if ($idVencimiento > 0 && isset($existentes[$idVencimiento])) {
+            $updateOk = mysqli_query(
+                $conexion,
+                "UPDATE venta_vencimientos
+                 SET fecha_vencimiento = '" . mysqli_real_escape_string($conexion, $fechaVencimiento) . "',
+                     monto = $montoSql,
+                     nota_interna = '$notaInterna',
+                     estado = '" . mysqli_real_escape_string($conexion, $estado) . "',
+                     fecha_ultimo_recordatorio = IF(
+                        fecha_vencimiento <> '" . mysqli_real_escape_string($conexion, $fechaVencimiento) . "'
+                        OR estado <> '" . mysqli_real_escape_string($conexion, $estado) . "',
+                        NULL,
+                        fecha_ultimo_recordatorio
+                     ),
+                     updated_at = NOW()
+                 WHERE id = $idVencimiento
+                 AND id_venta = $idVenta"
+            );
+            if (!$updateOk) {
+                throw new RuntimeException('No se pudo actualizar un vencimiento interno: ' . mysqli_error($conexion));
+            }
+            $idsConservados[$idVencimiento] = true;
+            continue;
+        }
+
+        $insertOk = mysqli_query(
+            $conexion,
+            "INSERT INTO venta_vencimientos (
+                id_venta,
+                fecha_vencimiento,
+                monto,
+                nota_interna,
+                estado,
+                id_usuario
+            ) VALUES (
+                $idVenta,
+                '" . mysqli_real_escape_string($conexion, $fechaVencimiento) . "',
+                $montoSql,
+                '$notaInterna',
+                '" . mysqli_real_escape_string($conexion, $estado) . "',
+                $idUsuario
+            )"
+        );
+        if (!$insertOk) {
+            throw new RuntimeException('No se pudo guardar un vencimiento interno: ' . mysqli_error($conexion));
+        }
+        $idsConservados[(int) mysqli_insert_id($conexion)] = true;
+    }
+
+    $idsEliminar = array_diff_key($existentes, $idsConservados);
+    if (!empty($idsEliminar)) {
+        $deleteOk = mysqli_query(
+            $conexion,
+            "DELETE FROM venta_vencimientos
+             WHERE id_venta = $idVenta
+             AND id IN (" . implode(',', array_map('intval', array_keys($idsEliminar))) . ")"
+        );
+        if (!$deleteOk) {
+            throw new RuntimeException('No se pudieron eliminar vencimientos internos antiguos: ' . mysqli_error($conexion));
+        }
+    }
+
+    return true;
+}
+
+function mayorista_diferir_recordatorio_vencimiento_venta($conexion, $idVencimiento)
+{
+    $idVencimiento = (int) $idVencimiento;
+    if ($idVencimiento <= 0 || !mayorista_schema_vencimientos_venta_listo($conexion)) {
+        return false;
+    }
+
+    return mysqli_query(
+        $conexion,
+        "UPDATE venta_vencimientos
+         SET fecha_ultimo_recordatorio = CURDATE(),
+             updated_at = NOW()
+         WHERE id = $idVencimiento"
+    ) !== false;
+}
+
+function mayorista_obtener_alertas_vencimientos_venta($conexion, $limit = 5)
+{
+    $limit = max(1, (int) $limit);
+    if (!mayorista_schema_vencimientos_venta_listo($conexion)) {
+        return array();
+    }
+
+    $query = mysqli_query(
+        $conexion,
+        "SELECT vv.*, v.id_cliente, c.nombre AS cliente_nombre
+         FROM venta_vencimientos vv
+         INNER JOIN ventas v ON vv.id_venta = v.id
+         LEFT JOIN cliente c ON v.id_cliente = c.idcliente
+         WHERE vv.estado = 'pendiente'
+         AND vv.fecha_vencimiento <= DATE_ADD(CURDATE(), INTERVAL 2 DAY)
+         AND (vv.fecha_ultimo_recordatorio IS NULL OR vv.fecha_ultimo_recordatorio < CURDATE())
+         ORDER BY vv.fecha_vencimiento ASC, vv.id ASC
+         LIMIT $limit"
+    );
+
+    $items = array();
+    if (!$query) {
+        return $items;
+    }
+
+    while ($row = mysqli_fetch_assoc($query)) {
+        $monto = isset($row['monto']) ? (float) $row['monto'] : 0;
+        $items[] = array(
+            'id' => (int) $row['id'],
+            'origen' => 'venta_vencimiento',
+            'tipo' => 'venta_vencimiento',
+            'estado' => (string) ($row['estado'] ?? 'pendiente'),
+            'descripcion' => 'Vencimiento interno venta #' . (int) $row['id_venta'],
+            'cliente_nombre' => (string) ($row['cliente_nombre'] ?? ''),
+            'proveedor_nombre' => '',
+            'fecha_vencimiento' => $row['fecha_vencimiento'] ?? null,
+            'fecha_deposito' => null,
+            'saldo_pendiente' => $monto,
+            'monto_total' => $monto,
+            'nota_interna' => (string) ($row['nota_interna'] ?? ''),
+            'id_venta' => (int) ($row['id_venta'] ?? 0),
+        );
+    }
+
+    return $items;
 }
 
 function mayorista_migracion_finanzas_operativas_fue_ejecutada($conexion)
@@ -1425,41 +1680,62 @@ function mayorista_confirmar_cheque_emitido($conexion, $idCompromiso, $fechaEgre
 function mayorista_obtener_alertas_financieras($conexion, $limit = 5)
 {
     $limit = max(1, (int) $limit);
-    if (!mayorista_table_exists($conexion, 'compromisos_financieros')) {
-        return array();
-    }
-
-    $query = mysqli_query(
-        $conexion,
-        "SELECT cf.*, c.nombre AS cliente_nombre, p.nombre AS proveedor_nombre
-         FROM compromisos_financieros cf
-         LEFT JOIN cliente c ON cf.id_cliente = c.idcliente
-         LEFT JOIN proveedores p ON cf.id_proveedor = p.id
-         WHERE (
-            (cf.tipo = 'cheque_recibido' AND cf.estado = 'pendiente_confirmacion' AND cf.fecha_deposito IS NOT NULL AND cf.fecha_deposito < CURDATE())
-            OR
-            (cf.tipo = 'cheque_emitido' AND cf.estado = 'pendiente_confirmacion' AND cf.fecha_vencimiento <= CURDATE())
-             OR
-             (cf.estado IN ('pendiente', 'parcial', 'vencido') AND cf.fecha_vencimiento <= CURDATE())
-         )
-         AND (cf.fecha_ultimo_recordatorio IS NULL OR cf.fecha_ultimo_recordatorio < CURDATE())
-         ORDER BY
-             CASE WHEN cf.estado = 'pendiente_confirmacion' THEN 0 ELSE 1 END,
-            CASE
-                WHEN cf.tipo = 'cheque_recibido' THEN cf.fecha_deposito
-                ELSE cf.fecha_vencimiento
-            END ASC,
-            cf.id ASC
-         LIMIT $limit"
-    );
-
     $items = array();
-    if (!$query) {
-        return $items;
+    if (mayorista_table_exists($conexion, 'compromisos_financieros')) {
+        $query = mysqli_query(
+            $conexion,
+            "SELECT cf.*, c.nombre AS cliente_nombre, p.nombre AS proveedor_nombre
+             FROM compromisos_financieros cf
+             LEFT JOIN cliente c ON cf.id_cliente = c.idcliente
+             LEFT JOIN proveedores p ON cf.id_proveedor = p.id
+             WHERE (
+                (cf.tipo = 'cheque_recibido' AND cf.estado = 'pendiente_confirmacion' AND cf.fecha_deposito IS NOT NULL AND cf.fecha_deposito < CURDATE())
+                OR
+                (cf.tipo = 'cheque_emitido' AND cf.estado = 'pendiente_confirmacion' AND cf.fecha_vencimiento <= CURDATE())
+                 OR
+                 (cf.estado IN ('pendiente', 'parcial', 'vencido') AND cf.fecha_vencimiento <= CURDATE())
+             )
+             AND (cf.fecha_ultimo_recordatorio IS NULL OR cf.fecha_ultimo_recordatorio < CURDATE())
+             ORDER BY
+                 CASE WHEN cf.estado = 'pendiente_confirmacion' THEN 0 ELSE 1 END,
+                CASE
+                    WHEN cf.tipo = 'cheque_recibido' THEN cf.fecha_deposito
+                    ELSE cf.fecha_vencimiento
+                END ASC,
+                cf.id ASC
+             LIMIT $limit"
+        );
+
+        if ($query) {
+            while ($row = mysqli_fetch_assoc($query)) {
+                $row['origen'] = 'compromiso_financiero';
+                $row['nota_interna'] = (string) ($row['observaciones'] ?? '');
+                $items[] = $row;
+            }
+        }
     }
 
-    while ($row = mysqli_fetch_assoc($query)) {
-        $items[] = $row;
+    $items = array_merge($items, mayorista_obtener_alertas_vencimientos_venta($conexion, $limit));
+    usort($items, function ($a, $b) {
+        $fechaA = !empty($a['tipo']) && $a['tipo'] === 'cheque_recibido' && !empty($a['fecha_deposito'])
+            ? $a['fecha_deposito']
+            : ($a['fecha_vencimiento'] ?? '9999-12-31');
+        $fechaB = !empty($b['tipo']) && $b['tipo'] === 'cheque_recibido' && !empty($b['fecha_deposito'])
+            ? $b['fecha_deposito']
+            : ($b['fecha_vencimiento'] ?? '9999-12-31');
+        if ($fechaA === $fechaB) {
+            $prioridadA = ($a['estado'] ?? '') === 'pendiente_confirmacion' ? 0 : 1;
+            $prioridadB = ($b['estado'] ?? '') === 'pendiente_confirmacion' ? 0 : 1;
+            if ($prioridadA === $prioridadB) {
+                return ((int) ($a['id'] ?? 0)) <=> ((int) ($b['id'] ?? 0));
+            }
+            return $prioridadA <=> $prioridadB;
+        }
+        return strcmp((string) $fechaA, (string) $fechaB);
+    });
+
+    if (count($items) > $limit) {
+        $items = array_slice($items, 0, $limit);
     }
 
     return $items;
