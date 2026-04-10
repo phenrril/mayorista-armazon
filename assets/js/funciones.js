@@ -906,6 +906,7 @@ $(function () {
         }
 
         const fechaVenta = $('#fecha_venta').val();
+        const horaVenta = $('#hora_venta').val() || new Date().toTimeString().slice(0, 5);
         const hoy = new Date().toISOString().slice(0, 10);
         if (!fechaVenta) {
             showCenteredAlert({
@@ -951,6 +952,7 @@ $(function () {
                 observacion: $('#observacion_venta').val(),
                 vencimientos_venta: JSON.stringify(vencimientos.vencimientos || []),
                 fecha_venta: fechaVenta,
+                hora_venta: horaVenta,
                 venta_token: $('#venta_token').val(),
                 cheque_plazo_dias: $('#cheque_plazo_dias').val(),
                 cheque_fecha_base: $('#cheque_fecha_base').val(),
