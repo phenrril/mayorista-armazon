@@ -3,6 +3,11 @@ session_start();
 include "../conexion.php";
 require_once "includes/mayorista_helpers.php";
 
+if (!($conexion instanceof mysqli)) {
+    exit('No se pudo conectar a la base de datos.');
+}
+/** @var mysqli $conexion */
+
 if (!isset($_SESSION['idUser']) || empty($_SESSION['idUser'])) {
     header("Location: ../");
     exit();
@@ -16,6 +21,7 @@ $hasClienteLocalidad = mayorista_column_exists($conexion, 'cliente', 'localidad'
 $hasClienteProvincia = mayorista_column_exists($conexion, 'cliente', 'provincia');
 $hasClienteDni = mayorista_column_exists($conexion, 'cliente', 'dni');
 $hasClienteCuit = mayorista_column_exists($conexion, 'cliente', 'cuit');
+$hasFinanzas = mayorista_schema_finanzas_operativas_listo($conexion);
 
 $schemaReady = mayorista_table_exists($conexion, 'cuenta_corriente') && mayorista_table_exists($conexion, 'movimientos_cc');
 $alert = '';
@@ -48,12 +54,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
         $monto = round((float) ($_POST['monto'] ?? 0), 2);
         $descripcion = trim($_POST['descripcion'] ?? 'Pago manual');
         $metodo = (int) ($_POST['metodo_pago'] ?? 1);
+        $chequePlazoDias = (int) ($_POST['cheque_plazo_dias'] ?? 30);
+        $chequeFechaBase = trim((string) ($_POST['cheque_fecha_base'] ?? date('Y-m-d')));
+        $chequeFechaDeposito = trim((string) ($_POST['cheque_fecha_deposito'] ?? ''));
 
         if ($monto <= 0) {
             $alert = '<div class="alert alert-warning">El monto del pago debe ser mayor a cero.</div>';
+        } elseif ($metodo === 5 && !$hasFinanzas) {
+            $alert = '<div class="alert alert-warning">Primero ejecutá la migración financiera desde configuración para usar cheques con recordatorios.</div>';
         } else {
             mysqli_begin_transaction($conexion);
             try {
+                if ($metodo === 5) {
+                    if (!in_array($chequePlazoDias, array(30, 60, 90, 120), true)) {
+                        $chequePlazoDias = 30;
+                    }
+                    if (!mayorista_fecha_iso_valida($chequeFechaBase)) {
+                        throw new InvalidArgumentException('La fecha base del cheque no es válida.');
+                    }
+                    if (!mayorista_fecha_iso_valida($chequeFechaDeposito)) {
+                        throw new InvalidArgumentException('La fecha esperada de depósito del cheque no es válida.');
+                    }
+                }
+
                 $saldo = mayorista_registrar_movimiento_cc(
                     $conexion,
                     $selectedClientId,
@@ -65,17 +88,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
                 );
 
                 $referencia = 'CC-PAGO-' . $selectedClientId . '-' . time();
-                mysqli_query(
-                    $conexion,
-                    "INSERT INTO ingresos(ingresos, fecha, id_venta, id_cliente, id_metodo)
-                     VALUES ($monto, NOW(), '$referencia', $selectedClientId, $metodo)"
-                );
+                if ($metodo === 5) {
+                    mayorista_registrar_compromiso_financiero($conexion, array(
+                        'tipo' => 'cheque_recibido',
+                        'id_cliente' => $selectedClientId,
+                        'id_metodo' => 5,
+                        'monto_total' => $monto,
+                        'saldo_pendiente' => $monto,
+                        'estado' => 'pendiente_confirmacion',
+                        'fecha_compromiso' => $chequeFechaBase,
+                        'fecha_vencimiento' => $chequeFechaDeposito,
+                        'fecha_deposito' => $chequeFechaDeposito,
+                        'descripcion' => 'Cheque recibido CC - ' . $descripcion . ' (' . $chequePlazoDias . ' dias)',
+                        'observaciones' => 'Pago manual de cuenta corriente',
+                        'id_usuario' => $id_user,
+                    ));
+                } else {
+                    mysqli_query(
+                        $conexion,
+                        "INSERT INTO ingresos(ingresos, fecha, id_venta, id_cliente, id_metodo, descripcion)
+                         VALUES ($monto, NOW(), '$referencia', $selectedClientId, $metodo, '" . mysqli_real_escape_string($conexion, $descripcion) . "')"
+                    );
+                }
 
                 mysqli_commit($conexion);
-                $alert = '<div class="alert alert-success">Pago registrado. Saldo actual: ' . mayorista_formatear_moneda($saldo) . '.</div>';
+                $alert = $metodo === 5
+                    ? '<div class="alert alert-success">Pago registrado con cheque. Saldo actual: ' . mayorista_formatear_moneda($saldo) . '. Se agregó el recordatorio para la fecha de depósito.</div>'
+                    : '<div class="alert alert-success">Pago registrado. Saldo actual: ' . mayorista_formatear_moneda($saldo) . '.</div>';
             } catch (Exception $e) {
                 mysqli_rollback($conexion);
-                $alert = '<div class="alert alert-danger">No se pudo registrar el pago.</div>';
+                $alert = '<div class="alert alert-danger">' . htmlspecialchars($e->getMessage()) . '</div>';
             }
         }
     }
@@ -272,12 +314,35 @@ include_once "includes/header.php";
                             </div>
                             <div class="form-group">
                                 <label>Metodo de pago</label>
-                                <select name="metodo_pago" class="form-control">
+                                <select name="metodo_pago" id="metodo_pago_cc" class="form-control">
                                     <option value="1">Efectivo</option>
                                     <option value="2">Credito</option>
                                     <option value="3">Debito</option>
                                     <option value="4">Transferencia</option>
+                                    <option value="5">Cheque</option>
                                 </select>
+                            </div>
+                            <div id="cc_cheque_fields" class="border rounded p-3 mb-3" style="display:none;">
+                                <div class="form-row">
+                                    <div class="form-group col-md-4">
+                                        <label>Plazo del cheque</label>
+                                        <select name="cheque_plazo_dias" id="cc_cheque_plazo_dias" class="form-control">
+                                            <option value="30">30 días</option>
+                                            <option value="60">60 días</option>
+                                            <option value="90">90 días</option>
+                                            <option value="120">120 días</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        <label>Fecha base</label>
+                                        <input type="date" name="cheque_fecha_base" id="cc_cheque_fecha_base" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        <label>Fecha esperada de depósito</label>
+                                        <input type="date" name="cheque_fecha_deposito" id="cc_cheque_fecha_deposito" class="form-control" value="<?php echo date('Y-m-d', strtotime('+30 days')); ?>">
+                                    </div>
+                                </div>
+                                <small class="text-muted">El saldo de la cuenta se actualiza ahora y el ingreso se confirmará desde recordatorios cuando el cheque se deposite.</small>
                             </div>
                             <div class="form-group">
                                 <label>Descripcion</label>
@@ -372,6 +437,28 @@ window.addEventListener('load', function () {
             $(this).toggle(text.indexOf(term) !== -1);
         });
     });
+
+    function actualizarCamposChequeCc() {
+        const esCheque = ($('#metodo_pago_cc').val() || '') === '5';
+        const $campos = $('#cc_cheque_fields');
+        $campos.toggle(esCheque);
+        if (!esCheque) {
+            return;
+        }
+
+        const fechaBase = $('#cc_cheque_fecha_base').val() || new Date().toISOString().slice(0, 10);
+        const plazo = parseInt($('#cc_cheque_plazo_dias').val(), 10) || 30;
+        const fecha = new Date(fechaBase + 'T00:00:00');
+        fecha.setDate(fecha.getDate() + plazo);
+        const yyyy = fecha.getFullYear();
+        const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dd = String(fecha.getDate()).padStart(2, '0');
+        $('#cc_cheque_fecha_deposito').val(yyyy + '-' + mm + '-' + dd);
+    }
+
+    $('#metodo_pago_cc').on('change', actualizarCamposChequeCc);
+    $('#cc_cheque_plazo_dias, #cc_cheque_fecha_base').on('change', actualizarCamposChequeCc);
+    actualizarCamposChequeCc();
 });
 </script>
 
