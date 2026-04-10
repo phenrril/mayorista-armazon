@@ -252,6 +252,23 @@ function calcularVenta(origen = 'abona') {
     });
 }
 
+function limpiarCobroSiNoHayImporte() {
+    const abonaInput = $('#abona');
+    const montoCcInput = $('#monto_cc');
+    if (!abonaInput.length || !montoCcInput.length) {
+        return;
+    }
+
+    const valorAbona = String(abonaInput.val() || '').trim();
+    const valorMontoCc = String(montoCcInput.val() || '').trim();
+    if (valorAbona === '' || valorAbona === '0' || valorAbona === '0.00') {
+        abonaInput.val('');
+    }
+    if (valorMontoCc === '' || valorMontoCc === '0' || valorMontoCc === '0.00') {
+        montoCcInput.val('');
+    }
+}
+
 function listar() {
     if (!$('#detalle_venta').length) {
         return;
@@ -1088,6 +1105,8 @@ $(function () {
         });
     });
 
+    limpiarCobroSiNoHayImporte();
     listar();
     calcularVenta();
+    limpiarCobroSiNoHayImporte();
 });
