@@ -34,7 +34,22 @@ function cc_metodo_es_cheque($idMetodo)
     return (int) $idMetodo === 5;
 }
 
-function cc_actualizar_movimiento_base($conexion, $idMovimiento, $monto, $idMetodo, $origenTipo = null, $origenId = null)
+function cc_resolver_fecha_pago($fechaIso, $horaBase = null)
+{
+    $fechaIso = trim((string) $fechaIso);
+    if (!mayorista_fecha_iso_valida($fechaIso)) {
+        throw new InvalidArgumentException('La fecha del pago no es válida.');
+    }
+
+    $fechaHora = mayorista_fecha_hora_desde_iso($fechaIso, $horaBase);
+    if ($fechaHora === null) {
+        throw new InvalidArgumentException('La fecha del pago no es válida.');
+    }
+
+    return $fechaHora;
+}
+
+function cc_actualizar_movimiento_base($conexion, $idMovimiento, $monto, $idMetodo, $origenTipo = null, $origenId = null, $fecha = null)
 {
     $idMovimiento = (int) $idMovimiento;
     $monto = round((float) $monto, 2);
@@ -51,6 +66,18 @@ function cc_actualizar_movimiento_base($conexion, $idMovimiento, $monto, $idMeto
     if ($origenId !== null && mayorista_column_exists($conexion, 'movimientos_cc', 'origen_id')) {
         $origenId = (int) $origenId;
         $updates[] = 'origen_id = ' . ($origenId > 0 ? $origenId : 'NULL');
+    }
+    if ($fecha !== null) {
+        $fecha = trim((string) $fecha);
+        if ($fecha !== '') {
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+                $fecha = cc_resolver_fecha_pago($fecha);
+            }
+            if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $fecha)) {
+                throw new InvalidArgumentException('La fecha del pago no es válida.');
+            }
+            $updates[] = "fecha = '" . mysqli_real_escape_string($conexion, $fecha) . "'";
+        }
     }
 
     if (empty($updates)) {
@@ -153,17 +180,18 @@ function cc_guardar_registro_venta_cobro($conexion, array $venta, $abona, $idMet
     }
 }
 
-function cc_guardar_movimiento_pago_asociado($conexion, array $movimiento, $monto, $idMetodo, $idUsuario)
+function cc_guardar_movimiento_pago_asociado($conexion, array $movimiento, $monto, $idMetodo, $idUsuario, $fechaPagoIso)
 {
     $monto = round((float) $monto, 2);
     $idMetodo = (int) $idMetodo;
     $idUsuario = (int) $idUsuario;
     $idCliente = (int) ($movimiento['id_cliente'] ?? 0);
     $descripcion = mayorista_limpiar_descripcion($movimiento['descripcion'] ?? 'Pago manual', 255);
-    $fechaMovimiento = !empty($movimiento['fecha']) ? date('Y-m-d H:i:s', strtotime((string) $movimiento['fecha'])) : date('Y-m-d H:i:s');
+    $fechaMovimiento = cc_resolver_fecha_pago($fechaPagoIso, (string) ($movimiento['fecha'] ?? ''));
     $fechaMovimientoIso = date('Y-m-d', strtotime($fechaMovimiento));
     $origenTipo = trim((string) ($movimiento['origen_tipo'] ?? ''));
     $origenId = (int) ($movimiento['origen_id'] ?? 0);
+    $plazoChequeDias = 30;
 
     if ($origenTipo === 'ingreso' && $origenId > 0) {
         mysqli_query($conexion, "DELETE FROM ingresos WHERE id = $origenId");
@@ -171,7 +199,7 @@ function cc_guardar_movimiento_pago_asociado($conexion, array $movimiento, $mont
     if ($origenTipo === 'compromiso_financiero' && $origenId > 0) {
         $compromisoQuery = mysqli_query(
             $conexion,
-            "SELECT estado
+            "SELECT estado, fecha_compromiso, fecha_deposito
              FROM compromisos_financieros
              WHERE id = $origenId
              LIMIT 1"
@@ -180,10 +208,21 @@ function cc_guardar_movimiento_pago_asociado($conexion, array $movimiento, $mont
         if ($compromiso && ($compromiso['estado'] ?? '') !== 'pendiente_confirmacion') {
             throw new RuntimeException('El cheque asociado ya fue procesado y no puede editarse desde cuenta corriente.');
         }
+        if (
+            $compromiso
+            && mayorista_fecha_iso_valida((string) ($compromiso['fecha_compromiso'] ?? ''))
+            && mayorista_fecha_iso_valida((string) ($compromiso['fecha_deposito'] ?? ''))
+        ) {
+            $fechaBaseCheque = new DateTime((string) $compromiso['fecha_compromiso']);
+            $fechaDepositoCheque = new DateTime((string) $compromiso['fecha_deposito']);
+            $diferencia = $fechaBaseCheque->diff($fechaDepositoCheque);
+            $plazoChequeDias = max(1, (int) $diferencia->format('%a'));
+        }
         mysqli_query($conexion, "DELETE FROM compromisos_financieros WHERE id = $origenId");
     }
 
     if (cc_metodo_es_cheque($idMetodo)) {
+        $fechaDeposito = date('Y-m-d', strtotime($fechaMovimientoIso . ' +' . $plazoChequeDias . ' days'));
         $nuevoOrigenId = mayorista_registrar_compromiso_financiero($conexion, array(
             'tipo' => 'cheque_recibido',
             'id_cliente' => $idCliente,
@@ -192,8 +231,8 @@ function cc_guardar_movimiento_pago_asociado($conexion, array $movimiento, $mont
             'saldo_pendiente' => $monto,
             'estado' => 'pendiente_confirmacion',
             'fecha_compromiso' => $fechaMovimientoIso,
-            'fecha_vencimiento' => date('Y-m-d', strtotime($fechaMovimientoIso . ' +30 days')),
-            'fecha_deposito' => date('Y-m-d', strtotime($fechaMovimientoIso . ' +30 days')),
+            'fecha_vencimiento' => $fechaDeposito,
+            'fecha_deposito' => $fechaDeposito,
             'descripcion' => 'Cheque recibido CC - ' . $descripcion,
             'observaciones' => 'Actualizado desde cuenta corriente',
             'id_usuario' => $idUsuario,
@@ -235,7 +274,7 @@ function cc_guardar_movimiento_pago_asociado($conexion, array $movimiento, $mont
     );
 }
 
-function cc_editar_movimiento($conexion, array $movimiento, $nuevoMonto, $idMetodo, $idUsuario)
+function cc_editar_movimiento($conexion, array $movimiento, $nuevoMonto, $idMetodo, $idUsuario, $fechaPagoIso = null)
 {
     $idMovimiento = (int) ($movimiento['id'] ?? 0);
     $idCuenta = (int) ($movimiento['id_cuenta_corriente'] ?? 0);
@@ -244,6 +283,8 @@ function cc_editar_movimiento($conexion, array $movimiento, $nuevoMonto, $idMeto
     $montoAnterior = round((float) ($movimiento['monto'] ?? 0), 2);
     $nuevoMonto = round((float) $nuevoMonto, 2);
     $idMetodo = (int) $idMetodo;
+    $fechaMovimientoActual = !empty($movimiento['fecha']) ? date('Y-m-d H:i:s', strtotime((string) $movimiento['fecha'])) : date('Y-m-d H:i:s');
+    $fechaPagoIso = trim((string) ($fechaPagoIso ?: date('Y-m-d', strtotime($fechaMovimientoActual))));
 
     if ($idMovimiento <= 0 || $idCuenta <= 0 || $idCliente <= 0) {
         throw new InvalidArgumentException('No se encontró el movimiento seleccionado.');
@@ -333,7 +374,8 @@ function cc_editar_movimiento($conexion, array $movimiento, $nuevoMonto, $idMeto
     }
 
     if ($tipo === 'pago') {
-        $resultadoPago = cc_guardar_movimiento_pago_asociado($conexion, $movimiento, $nuevoMonto, $idMetodo, $idUsuario);
+        $fechaPago = cc_resolver_fecha_pago($fechaPagoIso, $fechaMovimientoActual);
+        $resultadoPago = cc_guardar_movimiento_pago_asociado($conexion, $movimiento, $nuevoMonto, $idMetodo, $idUsuario, $fechaPagoIso);
         $sincronizado = !empty($resultadoPago['sincronizado']);
         if (!cc_actualizar_movimiento_base(
             $conexion,
@@ -341,7 +383,8 @@ function cc_editar_movimiento($conexion, array $movimiento, $nuevoMonto, $idMeto
             $nuevoMonto,
             $idMetodo,
             $resultadoPago['origen_tipo'] ?? $origenTipo,
-            $resultadoPago['origen_id'] ?? $origenId
+            $resultadoPago['origen_id'] ?? $origenId,
+            $fechaPago
         )) {
             throw new RuntimeException('No se pudo actualizar el movimiento de cuenta corriente.');
         }
@@ -390,13 +433,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
     if (!empty($_POST['action']) && $_POST['action'] === 'registrar_pago') {
         $monto = round((float) ($_POST['monto'] ?? 0), 2);
         $descripcion = trim($_POST['descripcion'] ?? 'Pago manual');
+        $fechaPagoIso = trim((string) ($_POST['fecha_pago'] ?? date('Y-m-d')));
         $metodo = (int) ($_POST['metodo_pago'] ?? 1);
         $chequePlazoDias = (int) ($_POST['cheque_plazo_dias'] ?? 30);
-        $chequeFechaBase = trim((string) ($_POST['cheque_fecha_base'] ?? date('Y-m-d')));
         $chequeFechaDeposito = trim((string) ($_POST['cheque_fecha_deposito'] ?? ''));
 
         if ($monto <= 0) {
             $alert = '<div class="alert alert-warning">El monto del pago debe ser mayor a cero.</div>';
+        } elseif (!mayorista_fecha_iso_valida($fechaPagoIso)) {
+            $alert = '<div class="alert alert-warning">La fecha del pago no es válida.</div>';
         } elseif (!$schemaMovimientosCc) {
             $alert = '<div class="alert alert-warning">Primero ejecutá la migración de movimientos de cuenta corriente desde configuración para guardar el modo de pago.</div>';
         } elseif ($metodo === 5 && !$hasFinanzas) {
@@ -404,12 +449,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
         } else {
             mysqli_begin_transaction($conexion);
             try {
+                $fechaPago = cc_resolver_fecha_pago($fechaPagoIso);
                 if ($metodo === 5) {
                     if (!in_array($chequePlazoDias, array(30, 60, 90, 120), true)) {
                         $chequePlazoDias = 30;
-                    }
-                    if (!mayorista_fecha_iso_valida($chequeFechaBase)) {
-                        throw new InvalidArgumentException('La fecha base del cheque no es válida.');
                     }
                     if (!mayorista_fecha_iso_valida($chequeFechaDeposito)) {
                         throw new InvalidArgumentException('La fecha esperada de depósito del cheque no es válida.');
@@ -423,7 +466,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
                     $columnasIngreso = array('ingresos', 'fecha', 'id_venta', 'id_cliente', 'id_metodo');
                     $valoresIngreso = array(
                         $monto,
-                        'NOW()',
+                        "'" . mysqli_real_escape_string($conexion, $fechaPago) . "'",
                         "'" . mysqli_real_escape_string($conexion, $referencia) . "'",
                         $selectedClientId,
                         $metodo,
@@ -449,7 +492,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
                         'monto_total' => $monto,
                         'saldo_pendiente' => $monto,
                         'estado' => 'pendiente_confirmacion',
-                        'fecha_compromiso' => $chequeFechaBase,
+                        'fecha_compromiso' => $fechaPagoIso,
                         'fecha_vencimiento' => $chequeFechaDeposito,
                         'fecha_deposito' => $chequeFechaDeposito,
                         'descripcion' => 'Cheque recibido CC - ' . $descripcion . ' (' . $chequePlazoDias . ' dias)',
@@ -466,7 +509,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
                     $descripcion,
                     $id_user,
                     null,
-                    null,
+                    $fechaPago,
                     $metodo,
                     $origenTipo,
                     $origenId
@@ -487,6 +530,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
         $idMovimiento = (int) ($_POST['id_movimiento'] ?? 0);
         $monto = round((float) ($_POST['monto'] ?? 0), 2);
         $metodo = (int) ($_POST['metodo_pago'] ?? 0);
+        $fechaPagoIso = trim((string) ($_POST['fecha_pago'] ?? ''));
 
         if (!$schemaMovimientosCc) {
             $alert = '<div class="alert alert-warning">Primero ejecutá la migración de movimientos de cuenta corriente desde configuración.</div>';
@@ -494,6 +538,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
             $alert = '<div class="alert alert-danger">No se encontró el movimiento a editar.</div>';
         } elseif ($monto <= 0) {
             $alert = '<div class="alert alert-warning">El monto debe ser mayor a cero.</div>';
+        } elseif ($fechaPagoIso === '' || !mayorista_fecha_iso_valida($fechaPagoIso)) {
+            $alert = '<div class="alert alert-warning">Indicá una fecha válida para el pago.</div>';
         } elseif ($metodo <= 0) {
             $alert = '<div class="alert alert-warning">Seleccioná un modo de pago válido.</div>';
         } elseif (cc_metodo_es_cheque($metodo) && !$hasFinanzas) {
@@ -514,7 +560,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $schemaReady) {
             } else {
                 mysqli_begin_transaction($conexion);
                 try {
-                    $resultadoEdicion = cc_editar_movimiento($conexion, $movimiento, $monto, $metodo, $id_user);
+                    $resultadoEdicion = cc_editar_movimiento($conexion, $movimiento, $monto, $metodo, $id_user, $fechaPagoIso);
                     mysqli_commit($conexion);
                     $alert = '<div class="alert alert-success">Movimiento actualizado. Saldo actual: '
                         . mayorista_formatear_moneda($resultadoEdicion['saldo'] ?? 0)
@@ -737,6 +783,10 @@ include_once "includes/header.php";
                                 <input type="number" name="monto" step="0.01" min="0.01" class="form-control">
                             </div>
                             <div class="form-group">
+                                <label>Fecha del pago</label>
+                                <input type="date" name="fecha_pago" id="cc_fecha_pago" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                            </div>
+                            <div class="form-group">
                                 <label>Metodo de pago</label>
                                 <select name="metodo_pago" id="metodo_pago_cc" class="form-control">
                                     <?php foreach ($metodosPago as $idMetodo => $labelMetodo) { ?>
@@ -755,11 +805,7 @@ include_once "includes/header.php";
                                             <option value="120">120 días</option>
                                         </select>
                                     </div>
-                                    <div class="form-group col-md-4">
-                                        <label>Fecha base</label>
-                                        <input type="date" name="cheque_fecha_base" id="cc_cheque_fecha_base" class="form-control" value="<?php echo date('Y-m-d'); ?>">
-                                    </div>
-                                    <div class="form-group col-md-4">
+                                    <div class="form-group col-md-8">
                                         <label>Fecha esperada de depósito</label>
                                         <input type="date" name="cheque_fecha_deposito" id="cc_cheque_fecha_deposito" class="form-control" value="<?php echo date('Y-m-d', strtotime('+30 days')); ?>">
                                     </div>
@@ -818,6 +864,7 @@ include_once "includes/header.php";
                                                     type="button"
                                                     class="btn btn-sm btn-outline-primary js-editar-movimiento"
                                                     data-id="<?php echo (int) $mov['id']; ?>"
+                                                    data-fecha="<?php echo htmlspecialchars(date('Y-m-d', strtotime($mov['fecha']))); ?>"
                                                     data-monto="<?php echo htmlspecialchars(number_format((float) $mov['monto'], 2, '.', '')); ?>"
                                                     data-metodo="<?php echo (int) ($mov['id_metodo'] ?? 0); ?>"
                                                     data-descripcion="<?php echo htmlspecialchars($mov['descripcion']); ?>"
@@ -862,6 +909,11 @@ include_once "includes/header.php";
                         <div class="form-group">
                             <label>Movimiento</label>
                             <input type="text" id="editar_movimiento_resumen" class="form-control" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha del pago</label>
+                            <input type="date" name="fecha_pago" id="editar_movimiento_fecha" class="form-control" required>
+                            <small id="editar_movimiento_fecha_help" class="form-text text-muted">Solo se aplica a pagos de cuenta corriente.</small>
                         </div>
                         <div class="form-group">
                             <label>Monto</label>
@@ -931,7 +983,7 @@ window.addEventListener('load', function () {
             return;
         }
 
-        const fechaBase = $('#cc_cheque_fecha_base').val() || new Date().toISOString().slice(0, 10);
+        const fechaBase = $('#cc_fecha_pago').val() || new Date().toISOString().slice(0, 10);
         const plazo = parseInt($('#cc_cheque_plazo_dias').val(), 10) || 30;
         const fecha = new Date(fechaBase + 'T00:00:00');
         fecha.setDate(fecha.getDate() + plazo);
@@ -942,17 +994,33 @@ window.addEventListener('load', function () {
     }
 
     $('#metodo_pago_cc').on('change', actualizarCamposChequeCc);
-    $('#cc_cheque_plazo_dias, #cc_cheque_fecha_base').on('change', actualizarCamposChequeCc);
+    $('#cc_cheque_plazo_dias, #cc_fecha_pago').on('change', actualizarCamposChequeCc);
     actualizarCamposChequeCc();
+
+    function actualizarEstadoFechaEdicion() {
+        const tipo = ($('#editar_movimiento_resumen').data('tipo') || '').toString();
+        const esPago = tipo === 'pago';
+        $('#editar_movimiento_fecha').prop('readonly', !esPago);
+        $('#editar_movimiento_fecha_help').text(
+            esPago
+                ? 'Se actualizará la fecha del pago y su registro asociado.'
+                : 'La fecha solo se puede modificar en pagos de cuenta corriente.'
+        );
+    }
 
     $(document).on('click', '.js-editar-movimiento', function () {
         const $button = $(this);
+        const tipo = ($button.data('tipo') || '').toString();
         $('#editar_movimiento_id').val($button.data('id') || '');
+        $('#editar_movimiento_fecha').val(($button.data('fecha') || '').toString());
         $('#editar_movimiento_monto').val($button.data('monto') || '');
         $('#editar_movimiento_metodo').val(String($button.data('metodo') || '1'));
-        $('#editar_movimiento_resumen').val(
+        $('#editar_movimiento_resumen')
+            .data('tipo', tipo)
+            .val(
             (($button.data('tipo') || '').toString() + ' - ' + ($button.data('descripcion') || '').toString()).trim()
         );
+        actualizarEstadoFechaEdicion();
         $('#modalEditarMovimientoCc').modal('show');
     });
 });
