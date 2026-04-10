@@ -224,11 +224,11 @@ include_once "includes/header.php";
                     </div>
                     <div class="form-group">
                         <label>Abona ahora</label>
-                        <input type="number" class="form-control form-control-modern" id="abona" step="0.01" min="0" placeholder="">
+                        <input type="number" class="form-control form-control-modern" id="abona" step="0.01" min="0" value="" placeholder="">
                     </div>
                     <div class="form-group">
                         <label>Se carga a CC</label>
-                        <input type="number" class="form-control form-control-modern" id="monto_cc" step="0.01" min="0" placeholder="" readonly>
+                        <input type="number" class="form-control form-control-modern" id="monto_cc" step="0.01" min="0" value="" placeholder="" readonly>
                         <small class="form-text text-muted">El saldo a cuenta corriente se calcula automáticamente según lo que se cargue en "Abona ahora". El precio unitario de cada item se puede ajustar libremente hasta generar la venta.</small>
                     </div>
                     <div class="form-group mb-0">
