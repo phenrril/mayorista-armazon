@@ -378,6 +378,32 @@ include_once "includes/header.php";
     flex-wrap: nowrap;
     min-width: 0;
 }
+
+.js-stock-input {
+    width: 76px;
+    max-width: 100%;
+    min-height: 30px;
+    padding: 0.2rem 0.35rem;
+    border-radius: 0.35rem;
+}
+
+.js-stock-input.is-saving {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.js-stock-cell .stock-feedback {
+    display: block;
+    min-height: 1rem;
+    font-size: 0.68rem;
+    line-height: 1rem;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.js-stock-cell .stock-feedback.is-visible {
+    opacity: 1;
+}
 </style>
 <div class="productos-container">
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap">
@@ -578,7 +604,7 @@ include_once "includes/header.php";
                                     : '<span class="badge badge-secondary">Inactivo</span>';
                                 $stockClass = (int) $data['existencia'] > 0 ? 'text-success' : 'text-danger';
                         ?>
-                            <tr data-stock="<?php echo (int) $data['existencia']; ?>">
+                            <tr data-stock="<?php echo (int) $data['existencia']; ?>" data-producto-id="<?php echo (int) $data['codproducto']; ?>">
                                 <td><?php echo $data['codproducto']; ?></td>
                                 <td><?php echo htmlspecialchars($data['codigo']); ?></td>
                                 <td><?php echo htmlspecialchars(mayorista_nombre_producto($data)); ?></td>
@@ -590,7 +616,18 @@ include_once "includes/header.php";
                                 <td><?php echo number_format((float) $data['precio'], 2, ',', '.'); ?></td>
                                 <?php if ($hasMayorista) { ?><td><?php echo number_format((float) $data['precio_mayorista'], 2, ',', '.'); ?></td><?php } ?>
                                 <?php if ($hasPrecioBruto) { ?><td><?php echo number_format((float) $data['precio_bruto'], 2, ',', '.'); ?></td><?php } ?>
-                                <td class="<?php echo $stockClass; ?>"><?php echo (int) $data['existencia']; ?></td>
+                                <td class="<?php echo $stockClass; ?> js-stock-cell" data-order="<?php echo (int) $data['existencia']; ?>">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        class="form-control form-control-sm js-stock-input"
+                                        value="<?php echo (int) $data['existencia']; ?>"
+                                        data-original="<?php echo (int) $data['existencia']; ?>"
+                                        data-last-saved="<?php echo (int) $data['existencia']; ?>"
+                                        aria-label="Stock producto <?php echo (int) $data['codproducto']; ?>">
+                                    <span class="stock-feedback js-stock-feedback"></span>
+                                </td>
                                 <td><?php echo $estado; ?></td>
                                 <td class="productos-acciones">
                                     <div class="productos-acciones-wrap">
@@ -879,6 +916,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const $btnLimpiar = $('#btnLimpiarFiltrosCatalogo');
     const $totalProductos = $('#js-total-productos');
     const $totalUnidades = $('#js-total-unidades');
+    const stockClassPositivo = 'text-success';
+    const stockClassSinStock = 'text-danger';
 
     function actualizarTotales($filas) {
         if (!$totalProductos.length || !$totalUnidades.length) {
@@ -924,6 +963,110 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         actualizarTotales($table.find('tbody tr:visible'));
+    }
+
+    function actualizarAparienciaStock($fila, $celdaStock, stock) {
+        const valorStock = parseInt(stock, 10) || 0;
+        $fila.attr('data-stock', valorStock);
+        $celdaStock.attr('data-order', valorStock);
+        $celdaStock
+            .removeClass(stockClassPositivo + ' ' + stockClassSinStock)
+            .addClass(valorStock > 0 ? stockClassPositivo : stockClassSinStock);
+    }
+
+    function mostrarFeedbackStock($celda, mensaje, esError) {
+        const $feedback = $celda.find('.js-stock-feedback');
+        if (!$feedback.length) {
+            return;
+        }
+
+        $feedback
+            .removeClass('text-success text-danger is-visible')
+            .addClass(esError ? 'text-danger' : 'text-success')
+            .text(mensaje || '')
+            .addClass(mensaje ? 'is-visible' : '');
+
+        if (!mensaje) {
+            return;
+        }
+
+        window.setTimeout(function () {
+            if ($feedback.text() === mensaje) {
+                $feedback.removeClass('is-visible').text('');
+            }
+        }, 1800);
+    }
+
+    function guardarStock($input) {
+        if (!$input || !$input.length || $input.hasClass('is-saving')) {
+            return;
+        }
+
+        const $fila = $input.closest('tr');
+        const $celdaStock = $input.closest('.js-stock-cell');
+        const idProducto = parseInt($fila.data('producto-id'), 10) || 0;
+        const stockPrevio = parseInt($input.attr('data-last-saved'), 10);
+        const stockRaw = String($input.val() || '').trim();
+
+        if (!idProducto) {
+            mostrarFeedbackStock($celdaStock, 'ID inválido', true);
+            $input.val(Number.isFinite(stockPrevio) ? stockPrevio : 0);
+            return;
+        }
+
+        if (!/^\d+$/.test(stockRaw)) {
+            mostrarFeedbackStock($celdaStock, 'Solo números >= 0', true);
+            $input.val(Number.isFinite(stockPrevio) ? stockPrevio : 0);
+            return;
+        }
+
+        const nuevoStock = parseInt(stockRaw, 10);
+        const valorPrevio = Number.isFinite(stockPrevio) ? stockPrevio : 0;
+        if (nuevoStock === valorPrevio) {
+            $input.val(nuevoStock);
+            return;
+        }
+
+        $input.addClass('is-saving');
+        $.ajax({
+            url: 'ajax.php',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                update_stock_producto: 1,
+                id_producto: idProducto,
+                stock: nuevoStock
+            }
+        }).done(function (respuesta) {
+            if (!respuesta || !respuesta.success) {
+                throw new Error(respuesta && respuesta.mensaje ? respuesta.mensaje : 'No se pudo guardar');
+            }
+
+            const stockGuardado = parseInt(respuesta.stock, 10) || 0;
+            $input
+                .val(stockGuardado)
+                .attr('data-original', stockGuardado)
+                .attr('data-last-saved', stockGuardado);
+            actualizarAparienciaStock($fila, $celdaStock, stockGuardado);
+            mostrarFeedbackStock($celdaStock, 'Guardado', false);
+
+            if ($.fn.DataTable && $.fn.DataTable.isDataTable($table)) {
+                const tableApi = $table.DataTable();
+                actualizarTotales($(tableApi.rows({ search: 'applied' }).nodes()));
+            } else {
+                actualizarTotales($table.find('tbody tr:visible'));
+            }
+        }).fail(function (xhr) {
+            let mensaje = 'No se pudo guardar';
+            if (xhr && xhr.responseJSON && xhr.responseJSON.mensaje) {
+                mensaje = xhr.responseJSON.mensaje;
+            }
+
+            $input.val(valorPrevio);
+            mostrarFeedbackStock($celdaStock, mensaje, true);
+        }).always(function () {
+            $input.removeClass('is-saving');
+        });
     }
 
     function vincularFiltrosDataTable(tableApi) {
@@ -992,6 +1135,20 @@ document.addEventListener('DOMContentLoaded', function () {
         if (window.confirm('Seguro queres eliminar "' + nombreProducto + '"?')) {
             ejecutarEliminacion();
         }
+    });
+
+    $(document).on('keydown', '.js-stock-input', function (event) {
+        if (event.key !== 'Enter') {
+            return;
+        }
+
+        event.preventDefault();
+        guardarStock($(this));
+        $(this).trigger('blur');
+    });
+
+    $(document).on('blur', '.js-stock-input', function () {
+        guardarStock($(this));
     });
 
     if ($.fn.DataTable && $table.length && !$.fn.DataTable.isDataTable($table)) {
