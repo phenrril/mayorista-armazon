@@ -1,0 +1,15 @@
+.env
+dev/
+prod/
+volumes/config/*
+!volumes/config/.gitkeep
+volumes/workspace/.openclaw/workspace-state.json
+volumes/workspace/memory/
+volumes/config/logs/
+volumes/config/media/
+volumes/config/tasks/
+volumes/config/telegram/
+volumes/config/agents/
+volumes/config/canvas/
+volumes/config/identity/
+*.bak.*

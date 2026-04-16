@@ -21,6 +21,7 @@ Aplicación PHP + MySQL para gestión comercial mayorista/minorista con cuenta c
 ### Integraciones
 - Facturación electrónica ARCA
 - API REST para OpenClaw con `X-API-Key`
+- Stack OpenClaw unico para Docker Desktop en Windows
 
 ## Módulos principales
 
@@ -72,6 +73,7 @@ mysql -u usuario -p nombre_bd < sql/setup_facturacion_electronica.sql
 - `docs/deploy-mayorista.md`
 - `docs/api-openclaw.md`
 - `docs/openclaw-skills.md`
+- `docs/openclaw.md`
 - `IMPLEMENTACION_FACTURACION_ELECTRONICA.md`
 - `docs/PDF_FACTURA_ELECTRONICA.md`
 

@@ -76,16 +76,111 @@ if ($segments[0] === 'clientes' && $method === 'POST' && count($segments) === 1)
     $nombre = mysqli_real_escape_string($conexion, trim($data['nombre'] ?? ''));
     $telefono = mysqli_real_escape_string($conexion, trim($data['telefono'] ?? ''));
     $direccion = mysqli_real_escape_string($conexion, trim($data['direccion'] ?? ''));
+    $optica = mysqli_real_escape_string($conexion, trim($data['optica'] ?? ''));
+    $localidad = mysqli_real_escape_string($conexion, trim($data['localidad'] ?? ''));
+    $codigoPostal = mysqli_real_escape_string($conexion, trim($data['codigo_postal'] ?? ''));
+    $provincia = mysqli_real_escape_string($conexion, trim($data['provincia'] ?? ''));
     $dni = mysqli_real_escape_string($conexion, trim($data['dni'] ?? ''));
+    $cuit = mysqli_real_escape_string($conexion, trim($data['cuit'] ?? ''));
+    $condicionesIva = array(
+        'Consumidor Final',
+        'IVA Responsable Inscripto',
+        'Responsable Monotributo',
+        'IVA Sujeto Exento',
+        'IVA Responsable no Inscripto',
+        'IVA no Responsable',
+        'Sujeto no Categorizado',
+        'Proveedor del Exterior',
+        'Cliente del Exterior',
+        'IVA Liberado - Ley N° 19.640',
+    );
+    $condicionIva = trim($data['condicion_iva'] ?? 'Consumidor Final');
+    if (!in_array($condicionIva, $condicionesIva, true)) {
+        $condicionIva = 'Consumidor Final';
+    }
+    $condicionIva = mysqli_real_escape_string($conexion, $condicionIva);
+    $tipoDocumento = (int) ($data['tipo_documento'] ?? 96);
+    if (!in_array($tipoDocumento, array(80, 96), true)) {
+        $tipoDocumento = 96;
+    }
+    $hasClienteCuit = mayorista_column_exists($conexion, 'cliente', 'cuit');
+    $hasClienteCondicionIva = mayorista_column_exists($conexion, 'cliente', 'condicion_iva');
+    $hasClienteTipoDocumento = mayorista_column_exists($conexion, 'cliente', 'tipo_documento');
+    $hasClienteOptica = mayorista_column_exists($conexion, 'cliente', 'optica');
+    $hasClienteLocalidad = mayorista_column_exists($conexion, 'cliente', 'localidad');
+    $hasClienteCodigoPostal = mayorista_column_exists($conexion, 'cliente', 'codigo_postal');
+    $hasClienteProvincia = mayorista_column_exists($conexion, 'cliente', 'provincia');
 
     if ($nombre === '' || $telefono === '' || $direccion === '') {
         api_response(array('success' => false, 'message' => 'nombre, telefono y direccion son obligatorios'), 422);
     }
 
+    if ($hasClienteOptica && $optica === '') {
+        api_response(array('success' => false, 'message' => 'optica es obligatoria'), 422);
+    }
+
+    if ($hasClienteLocalidad && $localidad === '') {
+        api_response(array('success' => false, 'message' => 'localidad es obligatoria'), 422);
+    }
+
+    if ($hasClienteCodigoPostal && $codigoPostal === '') {
+        api_response(array('success' => false, 'message' => 'codigo_postal es obligatorio'), 422);
+    }
+
+    if ($hasClienteProvincia && $provincia === '') {
+        api_response(array('success' => false, 'message' => 'provincia es obligatoria'), 422);
+    }
+
+    if ($hasClienteTipoDocumento && $tipoDocumento === 80 && $cuit === '') {
+        api_response(array('success' => false, 'message' => 'para tipo_documento=80 el cuit es obligatorio'), 422);
+    }
+
+    if ($hasClienteTipoDocumento && $tipoDocumento === 96 && $dni === '') {
+        api_response(array('success' => false, 'message' => 'para tipo_documento=96 el dni es obligatorio'), 422);
+    }
+
+    $insertColumns = array('nombre', 'telefono', 'direccion', 'usuario_id', 'dni', 'estado');
+    $insertValues = array("'$nombre'", "'$telefono'", "'$direccion'", '1', "'$dni'", '1');
+
+    if ($hasClienteOptica) {
+        $insertColumns[] = 'optica';
+        $insertValues[] = "'$optica'";
+    }
+
+    if ($hasClienteLocalidad) {
+        $insertColumns[] = 'localidad';
+        $insertValues[] = "'$localidad'";
+    }
+
+    if ($hasClienteCodigoPostal) {
+        $insertColumns[] = 'codigo_postal';
+        $insertValues[] = "'$codigoPostal'";
+    }
+
+    if ($hasClienteProvincia) {
+        $insertColumns[] = 'provincia';
+        $insertValues[] = "'$provincia'";
+    }
+
+    if ($hasClienteCuit) {
+        $insertColumns[] = 'cuit';
+        $insertValues[] = "'$cuit'";
+    }
+
+    if ($hasClienteCondicionIva) {
+        $insertColumns[] = 'condicion_iva';
+        $insertValues[] = "'$condicionIva'";
+    }
+
+    if ($hasClienteTipoDocumento) {
+        $insertColumns[] = 'tipo_documento';
+        $insertValues[] = (string) $tipoDocumento;
+    }
+
     $insert = mysqli_query(
         $conexion,
-        "INSERT INTO cliente(nombre, telefono, direccion, usuario_id, dni, estado)
-         VALUES ('$nombre', '$telefono', '$direccion', 1, '$dni', 1)"
+        "INSERT INTO cliente(" . implode(',', $insertColumns) . ")
+         VALUES (" . implode(', ', $insertValues) . ")"
     );
 
     if (!$insert) {
@@ -100,9 +195,16 @@ if ($segments[0] === 'clientes' && $method === 'POST' && count($segments) === 1)
         'cliente' => array(
             'id' => $idCliente,
             'nombre' => $nombre,
+            'optica' => $optica,
             'telefono' => $telefono,
             'direccion' => $direccion,
+            'localidad' => $localidad,
+            'codigo_postal' => $codigoPostal,
+            'provincia' => $provincia,
             'dni' => $dni,
+            'cuit' => $cuit,
+            'condicion_iva' => $condicionIva,
+            'tipo_documento' => $tipoDocumento,
         ),
     ), 201);
 }

@@ -1,0 +1,20 @@
+{
+  "id": "mayorista-api",
+  "name": "Mayorista API Bridge",
+  "description": "Herramientas para consultar y operar la API privada del sistema mayorista.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["baseUrl", "apiKey"],
+    "properties": {
+      "baseUrl": {
+        "type": "string",
+        "description": "Base URL de la API privada, por ejemplo http://host.docker.internal:8000/src/api/index.php"
+      },
+      "apiKey": {
+        "type": "string",
+        "description": "Valor de X-API-Key para autenticar contra la API privada"
+      }
+    }
+  }
+}

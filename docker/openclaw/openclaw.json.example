@@ -1,0 +1,103 @@
+{
+  logging: {
+    level: "info",
+    file: "/tmp/openclaw/openclaw.log",
+    consoleLevel: "info",
+    redactSensitive: "tools",
+  },
+
+  session: {
+    dmScope: "per-channel-peer",
+  },
+
+  gateway: {
+    mode: "local",
+    bind: "lan",
+    port: 18789,
+    auth: {
+      mode: "token",
+      token: "${OPENCLAW_GATEWAY_TOKEN}",
+    },
+    controlUi: {
+      allowedOrigins: [
+        "http://localhost:18789",
+        "http://127.0.0.1:18789",
+      ],
+    },
+  },
+
+  channels: {
+    telegram: {
+      enabled: true,
+      botToken: "${TELEGRAM_BOT_TOKEN}",
+      dmPolicy: "allowlist",
+      allowFrom: ["${TELEGRAM_OWNER_ID}", "${TELEGRAM_CLIENT_ID}"],
+      groupPolicy: "allowlist",
+      groups: {},
+    },
+  },
+
+  agents: {
+    defaults: {
+      workspace: "/home/node/.openclaw/workspace",
+      userTimezone: "America/Argentina/Buenos_Aires",
+      model: {
+        primary: "openai/gpt-5.4",
+      },
+      bootstrapPromptTruncationWarning: "once",
+      compaction: {
+        mode: "safeguard",
+      },
+    },
+    list: [
+      {
+        id: "main",
+        default: true,
+        identity: {
+          name: "MayoristaBot",
+          theme: "assistant for mayorista armazon operations",
+        },
+        groupChat: {
+          mentionPatterns: ["@mayoristabot", "@openclaw"],
+        },
+      },
+    ],
+  },
+
+  tools: {
+    media: {
+      audio: {
+        enabled: true,
+        maxBytes: 20971520,
+        models: [
+          { provider: "openai", model: "gpt-4o-mini-transcribe" },
+          { provider: "deepgram", model: "nova-3" },
+        ],
+        timeoutSeconds: 120,
+      },
+    },
+    // El bridge HTTP hacia la API privada queda documentado en:
+    // - docs/api-openclaw.md
+    // - docs/openclaw-skills.md
+    // El flujo operativo de confirmacion vive en AGENTS.md y TOOLS.md.
+  },
+
+  plugins: {
+    enabled: true,
+    load: {
+      paths: ["/app/local-plugins/mayorista-api-v2"],
+    },
+    entries: {
+      "mayorista-api": {
+        enabled: true,
+        config: {
+          baseUrl: "${MAYORISTA_API_BASE_URL}",
+          apiKey: "${MAYORISTA_API_KEY}",
+        },
+      },
+      openai: {
+        enabled: true,
+      },
+    },
+  },
+}
