@@ -42,7 +42,7 @@
       workspace: "/home/node/.openclaw/workspace",
       userTimezone: "America/Argentina/Buenos_Aires",
       model: {
-        primary: "openai/gpt-5.4",
+        primary: "openai/gpt-4.1-mini",
       },
       bootstrapPromptTruncationWarning: "once",
       compaction: {

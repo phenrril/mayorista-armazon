@@ -19,14 +19,14 @@ services:
     volumes:
       - ./volumes/config:/home/node/.openclaw
       - ./volumes/workspace:/home/node/.openclaw/workspace
-      - ./scripts:/bootstrap:ro
     ports:
       - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
       - "127.0.0.1:${OPENCLAW_BRIDGE_PORT:-18790}:18790"
     command:
       [
         "/bin/sh",
-        "/bootstrap/start-gateway.sh"
+        "-lc",
+        "PLUGIN_SRC=/home/node/.openclaw/workspace/.openclaw/mayorista-api; PLUGIN_DST=/app/local-plugins/mayorista-api-v2; if [ -d \"$$PLUGIN_SRC\" ]; then rm -rf \"$$PLUGIN_DST\"; mkdir -p \"$$PLUGIN_DST\"; cp -R \"$$PLUGIN_SRC\"/. \"$$PLUGIN_DST\"/; chmod -R go-w \"$$PLUGIN_DST\"; fi; exec node dist/index.js gateway --bind \"${OPENCLAW_GATEWAY_BIND:-lan}\" --port 18789"
       ]
     healthcheck:
       test:
