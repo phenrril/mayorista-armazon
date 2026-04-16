@@ -78,7 +78,7 @@ export default definePluginEntry({
     api.registerTool({
       name: "buscar_cliente",
       description:
-        "Busca clientes por nombre, telefono o DNI/CUIT. Usar antes de consultar cuenta corriente o registrar pagos.",
+        "Busca clientes por nombre, nombre de optica, telefono o DNI/CUIT. Usar antes de consultar cuenta corriente o registrar pagos.",
       parameters: Type.Object({
         consulta: Type.String({ minLength: 1 }),
       }),

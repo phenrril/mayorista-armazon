@@ -116,7 +116,7 @@ Respuesta exitosa:
 
 ### `GET /clientes?q=texto`
 
-Busca clientes por nombre, DNI/CUIT o telefono.
+Busca clientes por nombre, nombre de optica, DNI/CUIT o telefono.
 
 Respuesta:
 
@@ -127,6 +127,7 @@ Respuesta:
     {
       "idcliente": "15",
       "nombre": "Optica Centro",
+      "optica": "Optica Centro",
       "telefono": "3515555555",
       "direccion": "Av. Siempre Viva 123",
       "dni": "30-12345678-9"

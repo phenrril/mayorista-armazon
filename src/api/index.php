@@ -211,12 +211,20 @@ if ($segments[0] === 'clientes' && $method === 'POST' && count($segments) === 1)
 
 if ($segments[0] === 'clientes' && $method === 'GET' && count($segments) === 1) {
     $q = mysqli_real_escape_string($conexion, trim($_GET['q'] ?? ''));
+    $hasClienteOptica = mayorista_column_exists($conexion, 'cliente', 'optica');
     $result = mysqli_query(
         $conexion,
-        "SELECT idcliente, nombre, telefono, direccion, dni
+        "SELECT idcliente, nombre, telefono, direccion, dni" .
+        ($hasClienteOptica ? ", optica" : "") .
+        "
          FROM cliente
          WHERE estado = 1
-         AND (nombre LIKE '%$q%' OR dni LIKE '%$q%' OR telefono LIKE '%$q%')
+         AND (
+            nombre LIKE '%$q%'
+            OR dni LIKE '%$q%'
+            OR telefono LIKE '%$q%'" .
+            ($hasClienteOptica ? " OR optica LIKE '%$q%'" : "") .
+         ")
          ORDER BY nombre ASC
          LIMIT 20"
     );
