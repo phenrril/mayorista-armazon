@@ -37,6 +37,7 @@ services:
       DB_USER: c2880275_ventas
       DB_PASSWORD: wego76FIfe
       DB_NAME: c2880275_ventas
+      MAYORISTA_API_KEY: ${MAYORISTA_API_KEY:-}
     networks:
       - optica-network
       - edge_net
