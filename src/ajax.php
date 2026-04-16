@@ -473,6 +473,48 @@ if (isset($_POST['actualizar_tipo_venta'])) {
     ));
 }
 
+if (isset($_POST['update_stock_producto'])) {
+    if (!mayorista_tiene_permiso($conexion, $id_user, array('productos'))) {
+        ajax_json(array('success' => false, 'mensaje' => 'No tenes permiso para actualizar stock.'), 403);
+    }
+
+    $idProducto = (int) ($_POST['id_producto'] ?? 0);
+    $stockRaw = trim((string) ($_POST['stock'] ?? ''));
+    if ($idProducto <= 0 || $stockRaw === '' || !preg_match('/^\d+$/', $stockRaw)) {
+        ajax_json(array('success' => false, 'mensaje' => 'Stock inválido.'), 422);
+    }
+
+    $nuevoStock = (int) $stockRaw;
+    $productoQuery = mysqli_query(
+        $conexion,
+        "SELECT codproducto
+         FROM producto
+         WHERE codproducto = $idProducto
+         LIMIT 1"
+    );
+    $producto = $productoQuery ? mysqli_fetch_assoc($productoQuery) : null;
+    if (!$producto) {
+        ajax_json(array('success' => false, 'mensaje' => 'Producto no encontrado.'), 404);
+    }
+
+    $update = mysqli_query(
+        $conexion,
+        "UPDATE producto
+         SET existencia = $nuevoStock
+         WHERE codproducto = $idProducto
+         LIMIT 1"
+    );
+    if (!$update) {
+        ajax_json(array('success' => false, 'mensaje' => 'No se pudo actualizar el stock.'), 500);
+    }
+
+    ajax_json(array(
+        'success' => true,
+        'id_producto' => $idProducto,
+        'stock' => $nuevoStock,
+    ));
+}
+
 if (isset($_POST['action'])) {
     $id = (int) $_POST['id'];
     $cant = max(1, (int) $_POST['cant']);
