@@ -19,7 +19,7 @@ No asume `exec` sobre el host. El mecanismo recomendado es un bridge HTTP contro
 
 - Metodo: `GET`
 - URL: `/clientes?q={{consulta}}`
-- Uso: resolver clientes antes de consultar CC o registrar pagos.
+- Uso: resolver clientes antes de consultar CC o registrar pagos. La consulta puede ser por nombre del cliente o por nombre de optica.
 
 ### `consultar_cc_cliente`
 
@@ -101,6 +101,7 @@ No asume `exec` sobre el host. El mecanismo recomendado es un bridge HTTP contro
 - Lectura: puede consultar directo.
 - Mutacion: siempre debe pedir confirmacion.
 - Si hay multiples clientes o productos, pedir aclaracion antes de confirmar.
+- Para ubicar clientes antes de consultar cuenta corriente o registrar pagos, se puede buscar por nombre del cliente o por nombre de la optica.
 - Si falta un dato obligatorio, pedirlo antes de armar la previsualizacion.
 - En alta de cliente, pedir siempre: nombre, optica, telefono, direccion, localidad, provincia, codigo postal, tipo de documento, DNI, CUIT y condicion IVA.
 - Si un campo opcional no existe o no aplica, aceptar vacio, pero no omitir la pregunta.
