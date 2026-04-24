@@ -295,13 +295,15 @@ include_once "includes/header.php";
 }
 
 .productos-tabla-shell .table-responsive {
-    overflow-x: visible;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 0.3rem 0.6rem 0.45rem;
     border-radius: 18px;
 }
 
 #tbl {
     width: 100% !important;
+    min-width: 1120px;
     margin: 0 auto;
     font-size: 0.92rem;
 }
@@ -1155,6 +1157,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const tableApi = $table.DataTable({
             order: [[0, 'desc']],
             autoWidth: false,
+            scrollX: true,
             columnDefs: [
                 { targets: -1, orderable: false }
             ],
